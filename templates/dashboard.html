@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>RFID Parking — Dashboard</title>
+  <style>
+    :root{
+      --bg:#0f1117;--card:#1a1d2e;--card2:#20243a;
+      --accent:#00d4ff;--green:#00e676;--red:#ff4444;--yellow:#ffd600;
+      --text:#e8eaf0;--muted:#8892a4;
+      --radius:14px;
+    }
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;min-height:100vh}
+
+    /* ── Header ── */
+    header{
+      background:linear-gradient(135deg,#0d1b3e 0%,#1a1d2e 100%);
+      border-bottom:1px solid #2a2f4e;
+      padding:18px 32px;display:flex;align-items:center;justify-content:space-between;
+    }
+    header h1{font-size:1.4rem;font-weight:700;color:var(--accent)}
+    header small{color:var(--muted);font-size:.8rem;display:block;margin-top:2px}
+    .live-badge{background:#00e67622;border:1px solid var(--green);color:var(--green);
+      border-radius:20px;padding:4px 14px;font-size:.75rem;font-weight:600;display:flex;align-items:center;gap:6px}
+    .live-badge::before{content:'';width:8px;height:8px;border-radius:50%;background:var(--green);
+      animation:pulse 1.4s infinite}
+    @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+
+    /* ── Layout ── */
+    main{padding:28px 32px;max-width:1400px;margin:0 auto}
+
+    /* ── Stats bar ── */
+    .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:32px}
+    .stat-card{background:var(--card);border-radius:var(--radius);padding:20px 24px;
+      border:1px solid #2a2f4e;text-align:center}
+    .stat-card .val{font-size:2.4rem;font-weight:800;line-height:1}
+    .stat-card .lbl{color:var(--muted);font-size:.8rem;margin-top:6px;text-transform:uppercase;letter-spacing:.5px}
+    .val.green{color:var(--green)} .val.red{color:var(--red)} .val.accent{color:var(--accent)}
+
+    /* ── Slots grid ── */
+    h2{font-size:1.1rem;font-weight:600;margin-bottom:16px;color:var(--muted);text-transform:uppercase;letter-spacing:1px}
+    .slots{display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin-bottom:40px}
+    .slot{background:var(--card);border-radius:var(--radius);padding:20px;
+      border:2px solid #2a2f4e;cursor:pointer;transition:.2s;position:relative;overflow:hidden}
+    .slot:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,.4)}
+    .slot.occupied{border-color:#ff444444;background:#1a1010}
+    .slot.free{border-color:#00e67622;background:#0d1a12}
+    .slot-num{font-size:1.8rem;font-weight:800;color:var(--accent)}
+    .slot-status{font-size:.75rem;font-weight:600;margin-top:4px;text-transform:uppercase;letter-spacing:.5px}
+    .slot.occupied .slot-status{color:var(--red)}
+    .slot.free .slot-status{color:var(--green)}
+    .slot-vehicle{font-size:.85rem;color:var(--muted);margin-top:8px;font-family:monospace}
+    .slot-time{font-size:.75rem;color:var(--yellow);margin-top:4px}
+    .slot-btn{margin-top:12px;width:100%;padding:7px;border-radius:8px;border:none;cursor:pointer;
+      font-size:.78rem;font-weight:600;transition:.15s}
+    .slot.free .slot-btn{background:#00e67611;color:var(--green);border:1px solid var(--green)}
+    .slot.free .slot-btn:hover{background:var(--green);color:#000}
+    .slot.occupied .slot-btn{background:#ff444411;color:var(--red);border:1px solid var(--red)}
+    .slot.occupied .slot-btn:hover{background:var(--red);color:#fff}
+
+    /* ── Log table ── */
+    .log-wrap{background:var(--card);border-radius:var(--radius);border:1px solid #2a2f4e;overflow:hidden}
+    table{width:100%;border-collapse:collapse;font-size:.85rem}
+    th{background:#12152a;padding:12px 16px;text-align:left;color:var(--muted);
+       text-transform:uppercase;font-size:.72rem;letter-spacing:.5px}
+    td{padding:12px 16px;border-top:1px solid #1e2240}
+    tr:hover td{background:#1e2240}
+    .tag{display:inline-block;padding:3px 10px;border-radius:20px;font-size:.72rem;font-weight:600}
+    .tag.paid{background:#00e67622;color:var(--green);border:1px solid var(--green)}
+
+    /* ── Modal ── */
+    .modal-bg{display:none;position:fixed;inset:0;background:#000a;z-index:100;align-items:center;justify-content:center}
+    .modal-bg.open{display:flex}
+    .modal{background:var(--card2);border-radius:18px;padding:32px;width:420px;
+      border:1px solid #2a2f4e;box-shadow:0 24px 64px rgba(0,0,0,.7)}
+    .modal h3{font-size:1.2rem;margin-bottom:20px;color:var(--accent)}
+    label{display:block;margin-bottom:6px;color:var(--muted);font-size:.82rem}
+    input{width:100%;padding:10px 14px;border-radius:9px;border:1px solid #2a2f4e;
+      background:#12152a;color:var(--text);font-size:.95rem;outline:none}
+    input:focus{border-color:var(--accent)}
+    .btn-row{display:flex;gap:10px;margin-top:20px}
+    .btn{padding:10px 22px;border-radius:9px;border:none;cursor:pointer;font-weight:600;font-size:.9rem;flex:1}
+    .btn.primary{background:var(--accent);color:#000}
+    .btn.primary:hover{filter:brightness(1.1)}
+    .btn.cancel{background:#2a2f4e;color:var(--text)}
+
+    /* ── Payment modal ── */
+    .pay-box{text-align:center;padding:10px 0}
+    .fee-big{font-size:3rem;font-weight:800;color:var(--green)}
+    .fee-sub{color:var(--muted);font-size:.85rem;margin-top:4px}
+    .duration-badge{background:#ffd60022;border:1px solid var(--yellow);color:var(--yellow);
+      border-radius:8px;padding:8px 16px;display:inline-block;margin:14px 0;font-size:.9rem}
+    .pay-btn{width:100%;padding:14px;background:linear-gradient(135deg,#00e676,#00c853);
+      border:none;border-radius:10px;font-size:1rem;font-weight:700;cursor:pointer;
+      color:#000;margin-top:14px;transition:.15s}
+    .pay-btn:hover{filter:brightness(1.08)}
+    .success-anim{display:none;text-align:center;padding:20px 0}
+    .check{font-size:4rem;animation:pop .4s ease}
+    @keyframes pop{0%{transform:scale(0)}100%{transform:scale(1)}}
+
+    @media(max-width:900px){
+      .slots{grid-template-columns:repeat(3,1fr)}
+      .stats{grid-template-columns:repeat(2,1fr)}
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>🚗 RFID Parking Management System</h1>
+    <small>SRM Institute of Science and Technology — Prototype Demo</small>
+  </div>
+  <span class="live-badge">LIVE</span>
+</header>
+
+<main>
+
+  <!-- Stats -->
+  <div class="stats" id="stats">
+    <div class="stat-card">
+      <div class="val accent" id="s-total">10</div>
+      <div class="lbl">Total Slots</div>
+    </div>
+    <div class="stat-card">
+      <div class="val green" id="s-free">—</div>
+      <div class="lbl">Available</div>
+    </div>
+    <div class="stat-card">
+      <div class="val red" id="s-occ">—</div>
+      <div class="lbl">Occupied</div>
+    </div>
+    <div class="stat-card">
+      <div class="val accent" id="s-rev">₹0</div>
+      <div class="lbl">Revenue Today</div>
+    </div>
+  </div>
+
+  <!-- Slots -->
+  <h2>Parking Slots</h2>
+  <div class="slots" id="slot-grid"></div>
+
+  <!-- Log -->
+  <h2>Recent Sessions</h2>
+  <div class="log-wrap">
+    <table>
+      <thead>
+        <tr><th>Vehicle</th><th>Slot</th><th>Duration</th><th>Fee</th><th>Status</th></tr>
+      </thead>
+      <tbody id="log-body">
+        <tr><td colspan="5" style="text-align:center;color:var(--muted);padding:24px">No completed sessions yet</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+</main>
+
+<!-- Entry Modal -->
+<div class="modal-bg" id="entry-modal">
+  <div class="modal">
+    <h3>🔖 Vehicle Entry — Slot <span id="em-slot"></span></h3>
+    <label>Vehicle / FASTag ID</label>
+    <input id="em-vehicle" placeholder="e.g. MH12AB1234" maxlength="20"
+           onkeydown="if(event.key==='Enter') submitEntry()"/>
+    <div class="btn-row">
+      <button class="btn cancel" onclick="closeModal('entry-modal')">Cancel</button>
+      <button class="btn primary" onclick="submitEntry()">Log Entry ➜</button>
+    </div>
+    <p id="em-msg" style="margin-top:12px;font-size:.82rem;color:var(--red)"></p>
+  </div>
+</div>
+
+<!-- Exit / Payment Modal -->
+<div class="modal-bg" id="exit-modal">
+  <div class="modal">
+    <h3>🏁 Vehicle Exit — Slot <span id="xm-slot"></span></h3>
+    <div class="pay-box" id="pay-box">
+      <div class="fee-sub" id="xm-vehicle"></div>
+      <div class="duration-badge" id="xm-duration"></div>
+      <div class="fee-big" id="xm-fee"></div>
+      <div class="fee-sub">Amount due (FASTag auto-debit)</div>
+      <button class="pay-btn" onclick="confirmPayment()">✅ Confirm & Debit via FASTag</button>
+    </div>
+    <div class="success-anim" id="pay-success">
+      <div class="check">✅</div>
+      <h3 style="color:var(--green);margin:10px 0">Payment Successful!</h3>
+      <p style="color:var(--muted);font-size:.85rem">Amount debited from FASTag wallet</p>
+    </div>
+    <button class="btn cancel" style="width:100%;margin-top:14px" onclick="closeModal('exit-modal')">Close</button>
+  </div>
+</div>
+
+<script>
+let slots = {};
+let log   = [];
+let totalRevenue = 0;
+let pendingExit  = null;
+
+async function fetchSlots(){
+  const r = await fetch('/api/slots');
+  const data = await r.json();
+  slots = {};
+  data.forEach(s => slots[s.id] = s);
+  renderSlots();
+  renderStats();
+}
+
+async function fetchLog(){
+  const r = await fetch('/api/log');
+  log = await r.json();
+  totalRevenue = log.reduce((s,x)=>s+x.fee,0);
+  renderLog();
+  document.getElementById('s-rev').textContent = '₹' + totalRevenue.toFixed(0);
+}
+
+function renderStats(){
+  const free = Object.values(slots).filter(s=>!s.occupied).length;
+  const occ  = 10 - free;
+  document.getElementById('s-free').textContent = free;
+  document.getElementById('s-occ').textContent  = occ;
+}
+
+function renderSlots(){
+  const grid = document.getElementById('slot-grid');
+  grid.innerHTML = '';
+  for(let i=1;i<=10;i++){
+    const s = slots[String(i)];
+    const div = document.createElement('div');
+    div.className = 'slot ' + (s.occupied ? 'occupied' : 'free');
+    div.innerHTML = `
+      <div class="slot-num">P${s.id}</div>
+      <div class="slot-status">${s.occupied ? '🔴 Occupied' : '🟢 Free'}</div>
+      <div class="slot-vehicle">${s.occupied ? s.vehicle : '—'}</div>
+      ${s.occupied && s.entry_time ? `<div class="slot-time">In: ${new Date(s.entry_time).toLocaleTimeString()}</div>` : ''}
+      <button class="slot-btn" onclick="handleSlot('${s.id}')">
+        ${s.occupied ? 'Process Exit' : 'Log Entry'}
+      </button>`;
+    grid.appendChild(div);
+  }
+}
+
+function renderLog(){
+  const tbody = document.getElementById('log-body');
+  if(!log.length){
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:24px">No completed sessions yet</td></tr>';
+    return;
+  }
+  tbody.innerHTML = log.slice(0,10).map(r=>`
+    <tr>
+      <td style="font-family:monospace">${r.vehicle}</td>
+      <td>P${r.slot}</td>
+      <td>${r.duration_str}</td>
+      <td style="color:var(--green);font-weight:700">₹${r.fee}</td>
+      <td><span class="tag paid">PAID</span></td>
+    </tr>`).join('');
+}
+
+function handleSlot(id){
+  const s = slots[id];
+  if(s.occupied) openExitModal(id);
+  else           openEntryModal(id);
+}
+
+/* ── Entry ── */
+function openEntryModal(id){
+  document.getElementById('em-slot').textContent = id;
+  document.getElementById('em-vehicle').value = '';
+  document.getElementById('em-msg').textContent = '';
+  document.getElementById('entry-modal').classList.add('open');
+  setTimeout(()=>document.getElementById('em-vehicle').focus(),100);
+}
+
+async function submitEntry(){
+  const slotId  = document.getElementById('em-slot').textContent;
+  const vehicle = document.getElementById('em-vehicle').value.trim().toUpperCase();
+  if(!vehicle){ document.getElementById('em-msg').textContent='Enter a vehicle ID'; return; }
+
+  const r = await fetch('/api/entry', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({slot_id: slotId, vehicle_id: vehicle})
+  });
+  const d = await r.json();
+  if(d.success){
+    closeModal('entry-modal');
+    refresh();
+  } else {
+    document.getElementById('em-msg').textContent = d.message;
+  }
+}
+
+/* ── Exit ── */
+async function openExitModal(id){
+  const r = await fetch('/api/slots/'+id);
+  const d = await r.json();
+  pendingExit = id;
+
+  document.getElementById('xm-slot').textContent     = id;
+  document.getElementById('xm-vehicle').textContent  = '🚗 ' + d.vehicle;
+  document.getElementById('xm-duration').textContent = '⏱ ' + d.billing_preview.duration_str;
+  document.getElementById('xm-fee').textContent      = '₹' + d.billing_preview.fee;
+
+  document.getElementById('pay-box').style.display    = 'block';
+  document.getElementById('pay-success').style.display = 'none';
+  document.getElementById('exit-modal').classList.add('open');
+}
+
+async function confirmPayment(){
+  const r = await fetch('/api/exit', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({slot_id: pendingExit})
+  });
+  const d = await r.json();
+  if(d.success){
+    document.getElementById('pay-box').style.display    = 'none';
+    document.getElementById('pay-success').style.display = 'block';
+    refresh();
+  }
+}
+
+function closeModal(id){ document.getElementById(id).classList.remove('open') }
+
+/* ── Polling ── */
+function refresh(){ fetchSlots(); fetchLog(); }
+refresh();
+setInterval(refresh, 5000);
+</script>
+</body>
+</html>
