@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Welcome — Slot {{ slot_id }}</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;800&display=swap');
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{
+      background:#080c14;
+      color:#e8eaf0;
+      font-family:'Space Grotesk',sans-serif;
+      min-height:100vh;
+      display:flex;align-items:center;justify-content:center;
+      padding:20px;
+      overflow:hidden;
+    }
+
+    /* Animated background grid */
+    body::before{
+      content:'';position:fixed;inset:0;
+      background-image:
+        linear-gradient(rgba(0,212,255,.04) 1px,transparent 1px),
+        linear-gradient(90deg,rgba(0,212,255,.04) 1px,transparent 1px);
+      background-size:40px 40px;
+      animation:gridMove 20s linear infinite;
+      pointer-events:none;
+    }
+    @keyframes gridMove{from{background-position:0 0}to{background-position:40px 40px}}
+
+    .card{
+      background:linear-gradient(145deg,#0d1524,#111827);
+      border:1px solid rgba(0,230,118,.25);
+      border-radius:28px;
+      padding:48px 40px;
+      width:100%;max-width:460px;
+      text-align:center;
+      box-shadow:0 0 80px rgba(0,230,118,.08),0 32px 64px rgba(0,0,0,.6);
+      position:relative;
+      animation:slideUp .5s cubic-bezier(.22,1,.36,1) both;
+    }
+    @keyframes slideUp{from{opacity:0;transform:translateY(32px)}to{opacity:1;transform:none}}
+
+    /* Pulsing ring */
+    .ring{
+      width:100px;height:100px;
+      border-radius:50%;
+      background:radial-gradient(circle,rgba(0,230,118,.18),transparent 70%);
+      border:2px solid rgba(0,230,118,.5);
+      display:flex;align-items:center;justify-content:center;
+      margin:0 auto 24px;
+      animation:ringPulse 2s ease-in-out infinite;
+      font-size:2.8rem;
+    }
+    @keyframes ringPulse{
+      0%,100%{box-shadow:0 0 0 0 rgba(0,230,118,.4)}
+      50%{box-shadow:0 0 0 20px rgba(0,230,118,0)}
+    }
+
+    h1{font-size:1.7rem;font-weight:800;color:#00e676;letter-spacing:-.5px;margin-bottom:6px}
+    .sub{color:#8892a4;font-size:.9rem;margin-bottom:32px}
+
+    .info-grid{
+      display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:28px;
+    }
+    .info-box{
+      background:rgba(255,255,255,.04);
+      border:1px solid rgba(255,255,255,.07);
+      border-radius:14px;padding:16px 12px;
+    }
+    .info-box .lbl{font-size:.7rem;color:#8892a4;text-transform:uppercase;
+      letter-spacing:.8px;margin-bottom:6px}
+    .info-box .val{font-size:1.1rem;font-weight:700;color:#e8eaf0}
+    .info-box.big{grid-column:1/-1}
+    .info-box.slot .val{font-size:2rem;color:#00d4ff}
+    .info-box.vip .val{color:#ffd600}
+
+    .fasttag-chip{
+      display:inline-flex;align-items:center;gap:8px;
+      background:rgba(0,212,255,.08);
+      border:1px solid rgba(0,212,255,.3);
+      border-radius:100px;
+      padding:10px 20px;
+      font-size:.9rem;font-weight:600;color:#00d4ff;
+      margin-bottom:28px;
+      letter-spacing:.5px;
+    }
+    .chip-dot{width:8px;height:8px;border-radius:50%;background:#00d4ff;
+      animation:blink 1s infinite}
+    @keyframes blink{0%,100%{opacity:1}50%{opacity:.2}}
+
+    .notice{
+      background:rgba(0,230,118,.06);
+      border:1px solid rgba(0,230,118,.2);
+      border-radius:12px;
+      padding:14px 16px;
+      font-size:.82rem;
+      color:#8892a4;
+      line-height:1.6;
+      margin-bottom:24px;
+    }
+    .notice strong{color:#00e676}
+
+    .exit-link{
+      display:block;
+      padding:14px;
+      background:linear-gradient(135deg,#00e676,#00c853);
+      border-radius:12px;
+      color:#000;font-weight:700;font-size:.95rem;
+      text-decoration:none;
+      transition:.2s;
+      margin-bottom:12px;
+    }
+    .exit-link:hover{filter:brightness(1.1);transform:translateY(-1px)}
+
+    .home-link{
+      display:block;color:#8892a4;font-size:.82rem;text-decoration:none;
+      padding:8px;transition:.15s;
+    }
+    .home-link:hover{color:#00d4ff}
+
+    {% if is_vip %}
+    .card{border-color:rgba(255,214,0,.3);}
+    .ring{border-color:rgba(255,214,0,.6);
+      background:radial-gradient(circle,rgba(255,214,0,.15),transparent 70%);}
+    @keyframes ringPulse{
+      0%,100%{box-shadow:0 0 0 0 rgba(255,214,0,.4)}
+      50%{box-shadow:0 0 0 20px rgba(255,214,0,0)}
+    }
+    {% endif %}
+  </style>
+</head>
+<body>
+<div class="card">
+
+  <div class="ring">{% if is_vip %}👑{% else %}✅{% endif %}</div>
+
+  <h1>{% if is_vip %}VIP Entry Logged!{% else %}Entry Successful!{% endif %}</h1>
+  <p class="sub">FASTag scanned and registered automatically</p>
+
+  <div class="fasttag-chip">
+    <span class="chip-dot"></span>
+    FASTag: {{ vehicle }}
+  </div>
+
+  <div class="info-grid">
+    <div class="info-box slot big">
+      <div class="lbl">Assigned Slot</div>
+      <div class="val">P{{ slot_id }}</div>
+    </div>
+    <div class="info-box">
+      <div class="lbl">Entry Time</div>
+      <div class="val" id="entry-time">—</div>
+    </div>
+    <div class="info-box {% if is_vip %}vip{% endif %}">
+      <div class="lbl">Member Status</div>
+      <div class="val">{% if is_vip %}👑 VIP — 50% off{% else %}Guest{% endif %}</div>
+    </div>
+  </div>
+
+  <div class="notice">
+    <strong>How to exit:</strong> Scan the QR code on slot P{{ slot_id }} again
+    when you're ready to leave. Your fee will be calculated automatically
+    and debited via FASTag.
+  </div>
+
+  <a href="/scan/exit/{{ slot_id }}" class="exit-link">🏁 Exit Now (Process Payment)</a>
+  <a href="/" class="home-link">← Back to Dashboard</a>
+</div>
+
+<script>
+  // Display entry time in local time
+  const raw = "{{ entry_time }}";
+  document.getElementById('entry-time').textContent =
+    new Date(raw).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+</script>
+</body>
+</html>

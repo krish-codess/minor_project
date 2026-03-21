@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Error — RFID Parking</title>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{background:#0f1117;color:#e8eaf0;font-family:'Segoe UI',sans-serif;
+      min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
+    .card{background:#1a1d2e;border-radius:20px;padding:40px 32px;
+      width:100%;max-width:400px;text-align:center;
+      border:2px solid rgba(255,68,68,.3);}
+    .icon{font-size:3.5rem;margin-bottom:16px}
+    h1{color:#ff4444;font-size:1.4rem;margin-bottom:10px}
+    p{color:#8892a4;font-size:.9rem;line-height:1.6;margin-bottom:24px}
+    a{display:inline-block;padding:12px 28px;background:#1e2240;
+      border-radius:10px;color:#00d4ff;text-decoration:none;font-size:.9rem;font-weight:600}
+    a:hover{background:#2a2f4e}
+  </style>
+</head>
+<body>
+<div class="card">
+  <div class="icon">⚠️</div>
+  <h1>Something went wrong</h1>
+  <p>{{ message }}</p>
+  <a href="/">← Back to Dashboard</a>
+</div>
+</body>
+</html>

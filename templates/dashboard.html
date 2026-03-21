@@ -3,85 +3,97 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>RFID Parking — Dashboard</title>
+  <title>RFID Parking — Dashboard v2.1</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
   <style>
-    :root{--bg:#0f1117;--card:#1a1d2e;--card2:#20243a;--accent:#00d4ff;--green:#00e676;--red:#ff4444;--yellow:#ffd600;--text:#e8eaf0;--muted:#8892a4;--radius:14px}
+    :root{--bg:#080c14;--card:#0f1624;--card2:#151d2e;--accent:#00d4ff;--green:#00e676;--red:#ff4444;--yellow:#ffd600;--text:#e8eaf0;--muted:#8892a4;--border:#1e2640;--radius:16px}
     *{box-sizing:border-box;margin:0;padding:0}
     body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;min-height:100vh}
-    header{background:linear-gradient(135deg,#0d1b3e 0%,#1a1d2e 100%);border-bottom:1px solid #2a2f4e;padding:18px 32px;display:flex;align-items:center;justify-content:space-between}
-    header h1{font-size:1.4rem;font-weight:700;color:var(--accent)}
-    header small{color:var(--muted);font-size:.8rem;display:block;margin-top:2px}
-    .live-badge{background:#00e67622;border:1px solid var(--green);color:var(--green);border-radius:20px;padding:4px 14px;font-size:.75rem;font-weight:600;display:flex;align-items:center;gap:6px}
-    .live-badge::before{content:'';width:8px;height:8px;border-radius:50%;background:var(--green);animation:pulse 1.4s infinite}
-    @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
-    main{padding:28px 32px;max-width:1400px;margin:0 auto}
-    .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:32px}
-    .stat-card{background:var(--card);border-radius:var(--radius);padding:20px 24px;border:1px solid #2a2f4e;text-align:center}
-    .stat-card .val{font-size:2.4rem;font-weight:800;line-height:1}
-    .stat-card .lbl{color:var(--muted);font-size:.8rem;margin-top:6px;text-transform:uppercase;letter-spacing:.5px}
+    body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(0,212,255,.025) 1px,transparent 1px),linear-gradient(90deg,rgba(0,212,255,.025) 1px,transparent 1px);background-size:48px 48px;pointer-events:none;z-index:0}
+    main,header{position:relative;z-index:1}
+    header{background:rgba(8,12,20,.92);backdrop-filter:blur(12px);border-bottom:1px solid var(--border);padding:16px 32px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:50}
+    header h1{font-size:1.3rem;font-weight:700;color:var(--accent)}
+    header small{color:var(--muted);font-size:.75rem;display:block;margin-top:2px}
+    .header-right{display:flex;align-items:center;gap:10px}
+    .live-badge{background:rgba(0,230,118,.1);border:1px solid var(--green);color:var(--green);border-radius:20px;padding:4px 14px;font-size:.72rem;font-weight:600;display:flex;align-items:center;gap:6px}
+    .live-badge::before{content:'';width:7px;height:7px;border-radius:50%;background:var(--green);animation:pulse 1.4s infinite}
+    @keyframes pulse{0%,100%{opacity:1}50%{opacity:.25}}
+    .sync-badge{background:rgba(0,212,255,.08);border:1px solid rgba(0,212,255,.3);color:var(--accent);border-radius:20px;padding:4px 12px;font-size:.7rem;font-weight:600;display:none;align-items:center;gap:5px}
+    .sync-badge.show{display:flex}
+    .sync-dot{width:6px;height:6px;border-radius:50%;background:var(--accent);animation:pulse .8s infinite}
+    .surge-badge{background:rgba(255,214,0,.1);border:1px solid var(--yellow);color:var(--yellow);border-radius:20px;padding:4px 14px;font-size:.72rem;font-weight:700;display:none}
+    .surge-badge.show{display:flex;align-items:center;gap:5px}
+    main{padding:24px 32px;max-width:1400px;margin:0 auto}
+    .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:28px}
+    .stat-card{background:var(--card);border-radius:var(--radius);padding:20px 22px;border:1px solid var(--border)}
+    .stat-card .val{font-size:2.2rem;font-weight:800;line-height:1}
+    .stat-card .lbl{color:var(--muted);font-size:.75rem;margin-top:6px;text-transform:uppercase;letter-spacing:.5px}
     .val.green{color:var(--green)}.val.red{color:var(--red)}.val.accent{color:var(--accent)}
-    h2{font-size:1.1rem;font-weight:600;margin-bottom:16px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-top:8px}
-    .slots{display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin-bottom:40px}
-    .slot{background:var(--card);border-radius:var(--radius);padding:20px;border:2px solid #2a2f4e;cursor:pointer;transition:.2s}
-    .slot:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,.4)}
-    .slot.occupied{border-color:#ff444455;background:#1a1010}
-    .slot.free{border-color:#00e67633;background:#0d1a12}
-    .slot-num{font-size:1.8rem;font-weight:800;color:var(--accent)}
-    .slot-status{font-size:.75rem;font-weight:600;margin-top:4px;text-transform:uppercase;letter-spacing:.5px}
-    .slot.occupied .slot-status{color:var(--red)}.slot.free .slot-status{color:var(--green)}
-    .slot-vehicle{font-size:.85rem;color:var(--muted);margin-top:8px;font-family:monospace}
-    .slot-time{font-size:.75rem;color:var(--yellow);margin-top:4px}
-    .vip-tag{font-size:.68rem;background:#ffd60022;border:1px solid var(--yellow);color:var(--yellow);border-radius:4px;padding:1px 6px;margin-left:6px}
-    .slot-btn{margin-top:12px;width:100%;padding:7px;border-radius:8px;border:none;cursor:pointer;font-size:.78rem;font-weight:600;transition:.15s}
-    .slot.free .slot-btn{background:#00e67611;color:var(--green);border:1px solid var(--green)}
+    h2{font-size:.85rem;font-weight:600;margin-bottom:14px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-top:8px}
+    .slots{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:36px}
+    .slot{background:var(--card);border-radius:var(--radius);padding:18px;border:1px solid var(--border);cursor:pointer;transition:.18s}
+    .slot:hover{transform:translateY(-2px);box-shadow:0 8px 32px rgba(0,0,0,.5)}
+    .slot.occupied{border-color:rgba(255,68,68,.3);background:#140c0c}
+    .slot.free{border-color:rgba(0,230,118,.2);background:#0a140d}
+    .slot.booked{border-color:rgba(255,214,0,.3);background:#12110a}
+    .slot-num{font-size:1.6rem;font-weight:800;color:var(--accent)}
+    .slot-status{font-size:.72rem;font-weight:600;margin-top:4px;text-transform:uppercase;letter-spacing:.5px}
+    .slot.occupied .slot-status{color:var(--red)}.slot.free .slot-status{color:var(--green)}.slot.booked .slot-status{color:var(--yellow)}
+    .slot-vehicle{font-size:.82rem;color:var(--muted);margin-top:8px;font-family:'Courier New',monospace}
+    .slot-time{font-size:.7rem;color:var(--yellow);margin-top:3px}
+    .vip-tag{font-size:.65rem;background:rgba(255,214,0,.15);border:1px solid var(--yellow);color:var(--yellow);border-radius:4px;padding:1px 6px;margin-left:5px;vertical-align:middle}
+    .slot-btn{margin-top:10px;width:100%;padding:7px;border-radius:8px;border:none;cursor:pointer;font-size:.75rem;font-weight:600;transition:.15s}
+    .slot.free .slot-btn{background:rgba(0,230,118,.08);color:var(--green);border:1px solid rgba(0,230,118,.4)}
     .slot.free .slot-btn:hover{background:var(--green);color:#000}
-    .slot.occupied .slot-btn{background:#ff444411;color:var(--red);border:1px solid var(--red)}
+    .slot.occupied .slot-btn{background:rgba(255,68,68,.08);color:var(--red);border:1px solid rgba(255,68,68,.4)}
     .slot.occupied .slot-btn:hover{background:var(--red);color:#fff}
-    .analytics-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:40px}
-    .chart-card{background:var(--card);border-radius:var(--radius);padding:20px;border:1px solid #2a2f4e}
-    .chart-card h3{font-size:.85rem;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:16px}
-    .chart-wrap{position:relative;height:180px}
-    .log-wrap{background:var(--card);border-radius:var(--radius);border:1px solid #2a2f4e;overflow:hidden}
-    table{width:100%;border-collapse:collapse;font-size:.85rem}
-    th{background:#12152a;padding:12px 16px;text-align:left;color:var(--muted);text-transform:uppercase;font-size:.72rem;letter-spacing:.5px}
-    td{padding:12px 16px;border-top:1px solid #1e2240}
-    tr:hover td{background:#1e2240}
-    .tag{display:inline-block;padding:3px 10px;border-radius:20px;font-size:.72rem;font-weight:600}
-    .tag.paid{background:#00e67622;color:var(--green);border:1px solid var(--green)}
-    .tag.vip{background:#ffd60022;color:var(--yellow);border:1px solid var(--yellow);margin-left:4px}
-    .modal-bg{display:none;position:fixed;inset:0;background:#000a;z-index:100;align-items:center;justify-content:center}
+    .slot.booked .slot-btn{background:rgba(255,214,0,.08);color:var(--yellow);border:1px solid rgba(255,214,0,.3);cursor:default}
+    .analytics-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:36px}
+    .chart-card{background:var(--card);border-radius:var(--radius);padding:20px;border:1px solid var(--border)}
+    .chart-card h3{font-size:.75rem;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:14px}
+    .chart-wrap{position:relative;height:160px}
+    .log-wrap{background:var(--card);border-radius:var(--radius);border:1px solid var(--border);overflow:hidden}
+    table{width:100%;border-collapse:collapse;font-size:.83rem}
+    th{background:#0a0f1a;padding:11px 16px;text-align:left;color:var(--muted);text-transform:uppercase;font-size:.7rem;letter-spacing:.5px}
+    td{padding:11px 16px;border-top:1px solid var(--border)}
+    tr:hover td{background:rgba(255,255,255,.02)}
+    .tag{display:inline-block;padding:2px 9px;border-radius:20px;font-size:.7rem;font-weight:600}
+    .tag.paid{background:rgba(0,230,118,.1);color:var(--green);border:1px solid rgba(0,230,118,.3)}
+    .tag.vip{background:rgba(255,214,0,.1);color:var(--yellow);border:1px solid rgba(255,214,0,.3);margin-left:4px}
+    .modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:100;align-items:center;justify-content:center;backdrop-filter:blur(4px)}
     .modal-bg.open{display:flex}
-    .modal{background:var(--card2);border-radius:18px;padding:32px;width:440px;border:1px solid #2a2f4e;box-shadow:0 24px 64px rgba(0,0,0,.7)}
-    .modal h3{font-size:1.2rem;margin-bottom:20px;color:var(--accent)}
-    label{display:block;margin-bottom:6px;color:var(--muted);font-size:.82rem}
-    input{width:100%;padding:10px 14px;border-radius:9px;border:1px solid #2a2f4e;background:#12152a;color:var(--text);font-size:.95rem;outline:none}
+    .modal{background:var(--card2);border-radius:20px;padding:32px;width:460px;border:1px solid var(--border);box-shadow:0 32px 80px rgba(0,0,0,.8)}
+    .modal h3{font-size:1.1rem;margin-bottom:20px;color:var(--accent)}
+    label{display:block;margin-bottom:6px;color:var(--muted);font-size:.8rem}
+    input{width:100%;padding:10px 14px;border-radius:10px;border:1px solid var(--border);background:#0a0f1a;color:var(--text);font-size:.95rem;outline:none}
     input:focus{border-color:var(--accent)}
     .btn-row{display:flex;gap:10px;margin-top:20px}
-    .btn{padding:10px 22px;border-radius:9px;border:none;cursor:pointer;font-weight:600;font-size:.9rem;flex:1}
+    .btn{padding:10px 20px;border-radius:10px;border:none;cursor:pointer;font-weight:600;font-size:.88rem;flex:1;transition:.15s}
     .btn.primary{background:var(--accent);color:#000}.btn.primary:hover{filter:brightness(1.1)}
-    .btn.cancel{background:#2a2f4e;color:var(--text)}
-    .pay-box{text-align:center;padding:10px 0}
-    .fee-big{font-size:3rem;font-weight:800;color:var(--green)}
-    .fee-sub{color:var(--muted);font-size:.85rem;margin-top:4px}
-    .duration-badge{background:#ffd60022;border:1px solid var(--yellow);color:var(--yellow);border-radius:8px;padding:8px 16px;display:inline-block;margin:14px 0;font-size:.9rem}
-    .vip-disc{background:#ffd60033;border:1px solid var(--yellow);color:var(--yellow);border-radius:8px;padding:6px 14px;font-size:.82rem;margin-bottom:10px;display:none}
-    .pay-btn{width:100%;padding:14px;background:linear-gradient(135deg,#00e676,#00c853);border:none;border-radius:10px;font-size:1rem;font-weight:700;cursor:pointer;color:#000;margin-top:14px;transition:.15s}
+    .btn.cancel{background:var(--border);color:var(--text)}
+    .pay-box{text-align:center;padding:8px 0}
+    .fee-big{font-size:2.8rem;font-weight:800;color:var(--green)}
+    .fee-sub{color:var(--muted);font-size:.83rem;margin-top:4px}
+    .duration-badge{background:rgba(255,214,0,.08);border:1px solid rgba(255,214,0,.3);color:var(--yellow);border-radius:8px;padding:8px 16px;display:inline-block;margin:12px 0;font-size:.88rem}
+    .vip-disc{background:rgba(255,214,0,.08);border:1px solid rgba(255,214,0,.3);color:var(--yellow);border-radius:8px;padding:6px 14px;font-size:.8rem;margin-bottom:10px;display:none}
+    .pay-btn{width:100%;padding:13px;background:linear-gradient(135deg,#00e676,#00c853);border:none;border-radius:10px;font-size:.95rem;font-weight:700;cursor:pointer;color:#000;margin-top:12px;transition:.15s}
     .pay-btn:hover{filter:brightness(1.08)}
     .success-anim{display:none;text-align:center;padding:20px 0}
-    .check{font-size:4rem;animation:pop .4s ease}
+    .check{font-size:3.5rem;animation:pop .4s ease}
     @keyframes pop{0%{transform:scale(0)}100%{transform:scale(1)}}
-    @media(max-width:900px){.slots{grid-template-columns:repeat(3,1fr)}.stats{grid-template-columns:repeat(2,1fr)}.analytics-grid{grid-template-columns:1fr}}
+    @media(max-width:960px){.slots{grid-template-columns:repeat(3,1fr)}.stats{grid-template-columns:repeat(2,1fr)}.analytics-grid{grid-template-columns:1fr}}
+    @media(max-width:600px){main{padding:16px}header{padding:14px 16px}.slots{grid-template-columns:repeat(2,1fr)}}
   </style>
 </head>
 <body>
 <header>
   <div>
-    <h1>🚗 RFID Parking Management System</h1>
-    <small>SRM Institute of Science and Technology — Prototype Demo v2.0</small>
+    <h1>🚗 RFID Parking System</h1>
+    <small>SRM Institute of Science and Technology — v2.1 IoT</small>
   </div>
-  <div style="display:flex;align-items:center;gap:12px">
-    <span id="surge-header" style="display:none;background:#ffd60022;border:1px solid #ffd600;color:#ffd600;border-radius:20px;padding:4px 14px;font-size:.75rem;font-weight:700">⚡ SURGE ₹45/hr</span>
+  <div class="header-right">
+    <span id="surge-badge" class="surge-badge">⚡ SURGE ₹45/hr</span>
+    <span id="sync-badge" class="sync-badge"><span class="sync-dot"></span>Syncing</span>
     <span class="live-badge">LIVE</span>
   </div>
 </header>
@@ -103,7 +115,7 @@
   <div class="log-wrap">
     <table>
       <thead><tr><th>Vehicle</th><th>Slot</th><th>Duration</th><th>Fee</th><th>Status</th></tr></thead>
-      <tbody id="log-body"><tr><td colspan="5" style="text-align:center;color:var(--muted);padding:24px">No completed sessions yet</td></tr></tbody>
+      <tbody id="log-body"><tr><td colspan="5" style="text-align:center;color:var(--muted);padding:28px">No completed sessions yet</td></tr></tbody>
     </table>
   </div>
 </main>
@@ -113,12 +125,12 @@
     <h3>🔖 Vehicle Entry — Slot <span id="em-slot"></span></h3>
     <label>Vehicle / FASTag ID</label>
     <input id="em-vehicle" placeholder="e.g. TN09AB1234 or SRM-VIP-01" maxlength="20" onkeydown="if(event.key==='Enter') submitEntry()"/>
-    <div style="margin-top:10px;font-size:.78rem;color:var(--muted)">💡 VIP IDs: SRM-VIP-01, SRM-VIP-02, SRM-FACULTY-01</div>
+    <div style="margin-top:8px;font-size:.75rem;color:var(--muted)">💡 VIP IDs: SRM-VIP-01, SRM-VIP-02, SRM-FACULTY-01</div>
     <div class="btn-row">
       <button class="btn cancel" onclick="closeModal('entry-modal')">Cancel</button>
       <button class="btn primary" onclick="submitEntry()">Log Entry ➜</button>
     </div>
-    <p id="em-msg" style="margin-top:12px;font-size:.82rem;color:var(--red)"></p>
+    <p id="em-msg" style="margin-top:10px;font-size:.8rem;color:var(--red)"></p>
   </div>
 </div>
 
@@ -131,90 +143,125 @@
       <div class="vip-disc" id="xm-vip">👑 VIP 50% discount applied</div>
       <div class="fee-big" id="xm-fee"></div>
       <div class="fee-sub">Amount due (FASTag auto-debit)</div>
-      <button class="pay-btn" onclick="confirmPayment()">✅ Confirm & Debit via FASTag</button>
+      <button class="pay-btn" onclick="confirmPayment()">✅ Confirm & Debit</button>
     </div>
     <div class="success-anim" id="pay-success">
       <div class="check">✅</div>
       <h3 style="color:var(--green);margin:10px 0">Payment Successful!</h3>
-      <p style="color:var(--muted);font-size:.85rem">Amount debited from FASTag wallet</p>
+      <p style="color:var(--muted);font-size:.85rem">Debited from FASTag wallet</p>
     </div>
     <button class="btn cancel" style="width:100%;margin-top:14px" onclick="closeModal('exit-modal')">Close</button>
   </div>
 </div>
 
 <script>
-let allSlots=[],pendingExit=null,revenueChart=null,peakChart=null;
+let allSlots=[],pendingExit=null,pollCursor=0,revenueChart,peakChart;
+
 function initCharts(){
-  const o={responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
-    scales:{x:{ticks:{color:'#8892a4',font:{size:11}},grid:{color:'#1e2240'}},
-            y:{ticks:{color:'#8892a4',font:{size:11}},grid:{color:'#1e2240'}}}};
+  const base={responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
+    scales:{x:{ticks:{color:'#8892a4',font:{size:10}},grid:{color:'#1e2640'}},
+            y:{ticks:{color:'#8892a4',font:{size:10}},grid:{color:'#1e2640'}}}};
   revenueChart=new Chart(document.getElementById('revenueChart'),{type:'bar',
-    data:{labels:[],datasets:[{data:[],backgroundColor:'#00d4ff55',borderColor:'#00d4ff',borderWidth:2,borderRadius:6}]},
-    options:{...o,scales:{...o.scales,y:{...o.scales.y,ticks:{...o.scales.y.ticks,callback:v=>'₹'+v}}}}});
+    data:{labels:[],datasets:[{data:[],backgroundColor:'rgba(0,212,255,.35)',borderColor:'#00d4ff',borderWidth:2,borderRadius:6}]},
+    options:{...base,scales:{...base.scales,y:{...base.scales.y,ticks:{...base.scales.y.ticks,callback:v=>'₹'+v}}}}});
   peakChart=new Chart(document.getElementById('peakChart'),{type:'line',
-    data:{labels:[],datasets:[{data:[],borderColor:'#00e676',backgroundColor:'#00e67622',fill:true,tension:0.4,pointRadius:4}]},
-    options:o});
+    data:{labels:[],datasets:[{data:[],borderColor:'#00e676',backgroundColor:'rgba(0,230,118,.12)',fill:true,tension:.4,pointRadius:4}]},
+    options:base});
 }
+
 function updateCharts(a){
   if(!a)return;
   const h=a.hourly_revenue_today||[];
   revenueChart.data.labels=h.map(x=>`${String(x.hour).padStart(2,'0')}:00`);
   revenueChart.data.datasets[0].data=h.map(x=>x.revenue);
-  revenueChart.update();
+  revenueChart.update('none');
   const p=a.peak_occupancy_hours||[];
   peakChart.data.labels=p.map(x=>`${String(x.hour).padStart(2,'0')}:00`);
   peakChart.data.datasets[0].data=p.map(x=>x.count);
-  peakChart.update();
-  document.getElementById('surge-header').style.display=a.dynamic_pricing_active?'flex':'none';
+  peakChart.update('none');
+  document.getElementById('surge-badge').classList.toggle('show',!!a.dynamic_pricing_active);
 }
-async function fetchSlots(){
-  try{const r=await fetch('/api/slots');allSlots=await r.json();renderSlots();renderStats();}catch(e){console.error(e);}
+
+function applySlots(slots){
+  if(!slots||!slots.length)return;
+  allSlots=slots;renderSlots();renderStats();
 }
-async function fetchLog(){
-  try{
-    const r=await fetch('/api/log');const log=await r.json();
-    const rev=log.reduce((s,x)=>s+(x.fee||0),0);
-    document.getElementById('s-rev').textContent='₹'+rev.toFixed(0);
-    renderLog(log);
-  }catch(e){console.error(e);}
-}
-async function fetchAnalytics(){
-  try{const r=await fetch('/api/analytics');updateCharts(await r.json());}catch(e){}
-}
+
 function renderStats(){
-  const free=allSlots.filter(s=>!s.occupied).length;
+  const free=allSlots.filter(s=>!(s.is_occupied||s.occupied)).length;
   document.getElementById('s-free').textContent=free;
   document.getElementById('s-occ').textContent=allSlots.length-free;
 }
+
 function renderSlots(){
   const grid=document.getElementById('slot-grid');
   grid.innerHTML='';
-  [...allSlots].sort((a,b)=>parseInt(a.slot_id||a.id)-parseInt(b.slot_id||b.id)).forEach(s=>{
-    const id=s.slot_id||s.id,occ=!!s.occupied,v=s.vehicle_id||s.vehicle||'',t=s.entry_time||'';
+  [...allSlots].sort((a,b)=>parseInt(a.id||a.slot_id)-parseInt(b.id||b.slot_id)).forEach(s=>{
+    const id=s.id||s.slot_id,occ=!!(s.is_occupied||s.occupied),
+          booked=!occ&&!!s.booked_by,v=s.current_vehicle||s.vehicle||'',t=s.entry_time||'';
     const div=document.createElement('div');
-    div.className='slot '+(occ?'occupied':'free');
+    div.className='slot '+(occ?'occupied':booked?'booked':'free');
     div.innerHTML=`<div class="slot-num">P${id}</div>
-      <div class="slot-status">${occ?'🔴 Occupied':'🟢 Free'}</div>
-      <div class="slot-vehicle">${occ?v:'—'}${s.is_vip?'<span class="vip-tag">👑 VIP</span>':''}</div>
+      <div class="slot-status">${occ?'🔴 Occupied':booked?'🟡 Reserved':'🟢 Free'}</div>
+      <div class="slot-vehicle">${occ?v:booked?s.booked_by:'—'}${s.is_vip?'<span class="vip-tag">👑 VIP</span>':''}</div>
       ${occ&&t?`<div class="slot-time">In: ${new Date(t).toLocaleTimeString()}</div>`:''}
-      <button class="slot-btn" onclick="handleSlot('${id}')">${occ?'Process Exit':'Log Entry'}</button>`;
+      <button class="slot-btn" onclick="handleSlot('${id}')">${occ?'Process Exit':booked?'Reserved':'Log Entry'}</button>`;
     grid.appendChild(div);
   });
 }
+
 function renderLog(log){
   const tb=document.getElementById('log-body');
-  if(!log||!log.length){tb.innerHTML='<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:24px">No completed sessions yet</td></tr>';return;}
+  if(!log||!log.length){tb.innerHTML='<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:28px">No completed sessions yet</td></tr>';return;}
   tb.innerHTML=log.slice(0,10).map(r=>`<tr>
-    <td style="font-family:monospace">${r.vehicle_id||r.vehicle}</td>
-    <td>P${r.slot_id||r.slot}</td><td>${r.duration_str}</td>
-    <td style="color:var(--green);font-weight:700">₹${r.fee}</td>
+    <td style="font-family:'Courier New',monospace">${r.vehicle_id||r.vehicle}</td>
+    <td>P${r.slot_id||r.slot}</td><td>${r.duration_str||'—'}</td>
+    <td style="color:var(--green);font-weight:700">₹${r.total_fee||r.fee||0}</td>
     <td><span class="tag paid">PAID</span>${r.is_vip?'<span class="tag vip">VIP</span>':''}</td>
   </tr>`).join('');
 }
-function handleSlot(id){
-  const s=allSlots.find(x=>(x.slot_id||x.id)==id);
-  if(s)s.occupied?openExitModal(id):openEntryModal(id);
+
+async function fetchAll(){
+  try{
+    const[sR,lR,aR]=await Promise.all([fetch('/api/slots'),fetch('/api/log'),fetch('/api/analytics')]);
+    applySlots(await sR.json());
+    const log=await lR.json();
+    document.getElementById('s-rev').textContent='₹'+log.reduce((s,x)=>s+(x.total_fee||x.fee||0),0).toFixed(0);
+    renderLog(log);updateCharts(await aR.json());
+  }catch(e){console.error(e);}
 }
+
+/* Long-poll — replaces setInterval, reacts within ~1s */
+async function longPoll(){
+  const badge=document.getElementById('sync-badge');
+  while(true){
+    try{
+      badge.classList.add('show');
+      const res=await fetch(`/api/poll/${pollCursor}`,{signal:AbortSignal.timeout(30000)});
+      badge.classList.remove('show');
+      if(!res.ok){await sleep(2000);continue;}
+      const d=await res.json();
+      pollCursor=d.cursor||pollCursor;
+      if(d.slots&&d.slots.length)applySlots(d.slots);
+      if(d.events&&d.events.some(e=>e.event_type==='exit')){
+        const[lR,aR]=await Promise.all([fetch('/api/log'),fetch('/api/analytics')]);
+        const log=await lR.json();
+        document.getElementById('s-rev').textContent='₹'+log.reduce((s,x)=>s+(x.total_fee||x.fee||0),0).toFixed(0);
+        renderLog(log);updateCharts(await aR.json());
+      }
+    }catch(e){badge.classList.remove('show');await sleep(3000);}
+  }
+}
+
+function sleep(ms){return new Promise(r=>setTimeout(r,ms));}
+
+function handleSlot(id){
+  const s=allSlots.find(x=>(x.id||x.slot_id)==id);
+  if(!s)return;
+  if(s.is_occupied||s.occupied)openExitModal(id);
+  else if(!s.booked_by)openEntryModal(id);
+}
+
 function openEntryModal(id){
   document.getElementById('em-slot').textContent=id;
   document.getElementById('em-vehicle').value='';
@@ -222,6 +269,7 @@ function openEntryModal(id){
   document.getElementById('entry-modal').classList.add('open');
   setTimeout(()=>document.getElementById('em-vehicle').focus(),100);
 }
+
 async function submitEntry(){
   const slotId=document.getElementById('em-slot').textContent;
   const vehicle=document.getElementById('em-vehicle').value.trim().toUpperCase();
@@ -230,35 +278,38 @@ async function submitEntry(){
     const r=await fetch('/api/entry',{method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({slot_id:slotId,vehicle_id:vehicle})});
     const d=await r.json();
-    if(d.success){closeModal('entry-modal');refresh();}
+    if(d.success){closeModal('entry-modal');fetchAll();}
     else document.getElementById('em-msg').textContent=d.message;
   }catch(e){document.getElementById('em-msg').textContent='Network error';}
 }
+
 async function openExitModal(id){
   try{
     const r=await fetch('/api/slots/'+id);const d=await r.json();
     pendingExit=id;
     document.getElementById('xm-slot').textContent=id;
-    document.getElementById('xm-vehicle').textContent='🚗 '+(d.vehicle_id||d.vehicle||'');
-    document.getElementById('xm-duration').textContent='⏱ '+d.billing_preview.duration_str;
-    document.getElementById('xm-fee').textContent='₹'+d.billing_preview.fee;
-    document.getElementById('xm-vip').style.display=d.billing_preview.is_vip?'block':'none';
+    document.getElementById('xm-vehicle').textContent='🚗 '+(d.current_vehicle||d.vehicle||'');
+    document.getElementById('xm-duration').textContent='⏱ '+(d.billing_preview?.duration_str||'—');
+    document.getElementById('xm-fee').textContent='₹'+(d.billing_preview?.fee||0);
+    document.getElementById('xm-vip').style.display=d.billing_preview?.is_vip?'block':'none';
     document.getElementById('pay-box').style.display='block';
     document.getElementById('pay-success').style.display='none';
     document.getElementById('exit-modal').classList.add('open');
   }catch(e){console.error(e);}
 }
+
 async function confirmPayment(){
   try{
     const r=await fetch('/api/exit',{method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({slot_id:pendingExit})});
     const d=await r.json();
-    if(d.success){document.getElementById('pay-box').style.display='none';document.getElementById('pay-success').style.display='block';refresh();}
+    if(d.success){document.getElementById('pay-box').style.display='none';document.getElementById('pay-success').style.display='block';fetchAll();}
   }catch(e){console.error(e);}
 }
+
 function closeModal(id){document.getElementById(id).classList.remove('open');}
-function refresh(){fetchSlots();fetchLog();fetchAnalytics();}
-initCharts();refresh();setInterval(refresh,5000);
+
+initCharts();fetchAll();longPoll();
 </script>
 </body>
 </html>

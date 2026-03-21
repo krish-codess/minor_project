@@ -78,8 +78,9 @@ class SlotMonitor:
         status = "OCCUPIED" if occupied else "FREE"
         print(f"[Slot {self.slot_id}] Camera detected: {status}")
         try:
-            # Notify dashboard via a simple status endpoint (future enhancement)
-            pass
+            requests.post(f"{self.api_base}/api/camera/update",
+                          json={"slot_id": str(self.slot_id), "occupied": occupied},
+                          timeout=2)
         except Exception as e:
             print(f"[Slot {self.slot_id}] API notify failed: {e}")
 
@@ -143,6 +144,12 @@ def run_simulation(api_base: str):
         states[slot] = not states[slot]
         status = "🔴 OCCUPIED" if states[slot] else "🟢 FREE"
         print(f"  Cycle {cycle+1:02d} | Slot P{slot}: Camera → {status}")
+        try:
+            requests.post(f'{api_base}/api/camera/update',
+                          json={'slot_id': slot, 'occupied': states[slot]},
+                          timeout=2)
+        except Exception:
+            pass
         time.sleep(1.5)
 
     print("\n[SIMULATION] Done. In production: connect to physical camera.")
