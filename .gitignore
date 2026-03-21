@@ -1,1 +1,7 @@
-RFID_Parking_Presentation_Final.pptx
+parking.db
+parking.db-shm
+parking.db-wal
+__pycache__/
+*.pyc
+.venv/
+.DS_Store
