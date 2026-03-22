@@ -1,19 +1,27 @@
 """
-timediff.py  (v2.1)
+timediff.py  (v3.0 — AI-Security & Smart Economy)
 TIMEDIFF Algorithm — Edge-local parking fee computation.
-Supports VIP discounts, dynamic surge pricing, grace period, and daily cap.
+
+New in v3.0:
+  • is_ev_slot  — adds ₹50 EV charging surcharge for slots 9 & 10
+  • is_surge    — explicit surge flag (also auto-computed from occupancy)
+  • compute_fee accepts slot_id for EV detection
 """
 
 from datetime import datetime, timedelta
 import math
 
+# ── Rate configuration ────────────────────────────────────────────────────────
 RATE_PER_HOUR  = 30.0
-DYNAMIC_RATE   = 45.0
+DYNAMIC_RATE   = 45.0    # 1.5× surge rate
 VIP_DISCOUNT   = 0.50
 MIN_FEE        = 10.0
 GRACE_MINUTES  = 5
 MAX_DAILY_FEE  = 300.0
+EV_SURCHARGE   = 50.0    # ₹50 for EV-ready slots 9 & 10
+EV_SLOTS       = {9, 10, "9", "10"}
 
+# ── VIP registry (fallback if not in DB members table) ───────────────────────
 VIP_LIST = {
     "SRM-VIP-01", "SRM-VIP-02", "SRM-VIP-03",
     "SRM-FACULTY-01", "SRM-FACULTY-02",
@@ -25,6 +33,7 @@ def is_vip_vehicle(vehicle_id: str) -> bool:
 
 
 def get_effective_rate(occupied_count: int, total_slots: int = 10) -> float:
+    """Return surge rate if >80% occupied, else base rate."""
     ratio = occupied_count / total_slots if total_slots > 0 else 0
     return DYNAMIC_RATE if ratio > 0.80 else RATE_PER_HOUR
 
@@ -35,15 +44,41 @@ def parse_timestamp(ts) -> datetime:
     return datetime.fromisoformat(ts)
 
 
-def compute_fee(entry_ts, exit_ts=None, is_vip: bool = False,
-                effective_rate: float = None) -> dict:
+def compute_fee(
+    entry_ts,
+    exit_ts        = None,
+    is_vip         : bool  = False,
+    effective_rate : float = None,
+    is_surge       : bool  = False,
+    slot_id                = None,
+) -> dict:
+    """
+    TIMEDIFF core — v3.0.
+
+    Args:
+        entry_ts       : ISO string or datetime
+        exit_ts        : ISO string or datetime (default: now)
+        is_vip         : Apply 50% VIP discount
+        effective_rate : Override rate (dynamic pricing)
+        is_surge       : Explicit surge flag (overrides rate to DYNAMIC_RATE)
+        slot_id        : If 9 or 10, add EV surcharge of ₹50
+
+    Returns dict with fee, breakdown, EV info, VIP info.
+    """
     t_entry = parse_timestamp(entry_ts)
     t_exit  = parse_timestamp(exit_ts) if exit_ts else datetime.now()
 
     if t_exit < t_entry:
         raise ValueError("Exit time cannot be before entry time")
 
-    rate    = effective_rate if effective_rate is not None else RATE_PER_HOUR
+    # Determine rate
+    if is_surge:
+        rate = DYNAMIC_RATE
+    elif effective_rate is not None:
+        rate = effective_rate
+    else:
+        rate = RATE_PER_HOUR
+
     delta   = t_exit - t_entry
     total_s = int(delta.total_seconds())
     total_m = total_s // 60
@@ -53,12 +88,19 @@ def compute_fee(entry_ts, exit_ts=None, is_vip: bool = False,
     raw_fee    = billable_h * rate
     fee        = min(MAX_DAILY_FEE, max(MIN_FEE, math.ceil(raw_fee * 100) / 100))
 
+    # EV surcharge
+    is_ev    = slot_id in EV_SLOTS
+    ev_extra = EV_SURCHARGE if is_ev else 0.0
+    fee      = min(MAX_DAILY_FEE, fee + ev_extra)
+
+    # VIP discount (applied after EV surcharge)
     vip_savings = 0.0
     if is_vip:
         vip_savings = round(fee * VIP_DISCOUNT, 2)
         fee = max(round(fee * (1 - VIP_DISCOUNT), 2), MIN_FEE / 2)
 
     hours, minutes = total_m // 60, total_m % 60
+
     return {
         "entry":           t_entry.isoformat(),
         "exit":            t_exit.isoformat(),
@@ -68,6 +110,8 @@ def compute_fee(entry_ts, exit_ts=None, is_vip: bool = False,
         "billable_hours":  round(billable_h, 4),
         "fee":             round(fee, 2),
         "is_vip":          is_vip,
+        "is_ev":           is_ev,
+        "is_surge":        rate > RATE_PER_HOUR,
         "breakdown": {
             "rate_per_hour":   rate,
             "is_dynamic_rate": rate > RATE_PER_HOUR,
@@ -75,6 +119,7 @@ def compute_fee(entry_ts, exit_ts=None, is_vip: bool = False,
             "min_fee":         MIN_FEE,
             "max_daily_fee":   MAX_DAILY_FEE,
             "raw_fee":         round(raw_fee, 2),
+            "ev_surcharge":    ev_extra,
             "vip_savings":     vip_savings,
         }
     }
@@ -85,18 +130,23 @@ def format_duration(seconds: int) -> str:
     return f"{m // 60}h {m % 60}m"
 
 
+# ── Self-test ─────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
-    print("TIMEDIFF v2.1 — Self Test\n" + "="*45)
+    print("TIMEDIFF v3.0 — Self Test\n" + "="*55)
     now = datetime.now()
     tests = [
-        ("3 min → min fee",        timedelta(minutes=3),  False, RATE_PER_HOUR),
-        ("30 min",                 timedelta(minutes=30), False, RATE_PER_HOUR),
-        ("4 hours",                timedelta(hours=4),    False, RATE_PER_HOUR),
-        ("10 hours → daily cap",   timedelta(hours=10),   False, RATE_PER_HOUR),
-        ("VIP 30 min",             timedelta(minutes=30), True,  RATE_PER_HOUR),
-        ("Surge 2h (>80% full)",   timedelta(hours=2),    False, DYNAMIC_RATE),
-        ("VIP + Surge 2h",         timedelta(hours=2),    True,  DYNAMIC_RATE),
+        ("30 min guest",              timedelta(minutes=30), False, False, RATE_PER_HOUR, "1"),
+        ("30 min VIP",                timedelta(minutes=30), True,  False, RATE_PER_HOUR, "1"),
+        ("2h surge",                  timedelta(hours=2),    False, True,  DYNAMIC_RATE,  "1"),
+        ("2h EV slot 9",              timedelta(hours=2),    False, False, RATE_PER_HOUR, "9"),
+        ("2h EV slot 10 + VIP",       timedelta(hours=2),    True,  False, RATE_PER_HOUR, "10"),
+        ("2h EV + surge",             timedelta(hours=2),    False, True,  DYNAMIC_RATE,  "9"),
     ]
-    for desc, delta, vip, rate in tests:
-        r = compute_fee(now - delta, is_vip=vip, effective_rate=rate)
-        print(f"  {'VIP' if vip else '   '} | ₹{rate}/hr | {desc:25s} → ₹{r['fee']}")
+    for desc, delta, vip, surge, rate, sid in tests:
+        r = compute_fee(now - delta, is_vip=vip, effective_rate=rate,
+                        is_surge=surge, slot_id=sid)
+        tags = []
+        if vip:   tags.append("VIP")
+        if surge: tags.append("SURGE")
+        if r["is_ev"]: tags.append("EV+₹50")
+        print(f"  {desc:35s} → ₹{r['fee']:6.2f}  {' '.join(tags)}")

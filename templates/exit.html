@@ -3,46 +3,94 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Parking Exit — Slot {{ slot.id }}</title>
+  <title>Parking Exit — Slot {{ slot.slot_id or slot.id }}</title>
   <style>
     *{box-sizing:border-box;margin:0;padding:0}
-    body{background:#0f1117;color:#e8eaf0;font-family:'Segoe UI',sans-serif;
+    body{background:#080c14;color:#e8eaf0;font-family:'Segoe UI',sans-serif;
       min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
-    .card{background:#1a1d2e;border-radius:20px;padding:36px 32px;width:100%;max-width:440px;
-      border:2px solid #ff444444;text-align:center;box-shadow:0 24px 64px rgba(0,0,0,.6)}
-    h1{font-size:1.5rem;color:#ff4444;margin-bottom:6px}
-    .slot-num{font-size:3.5rem;font-weight:900;color:#00d4ff;margin:14px 0 4px}
-    .vehicle{font-family:monospace;font-size:1.2rem;color:#ffd600;margin-bottom:20px}
-    .billing{background:#12152a;border-radius:14px;padding:20px;margin:20px 0;text-align:left}
+    body::before{content:'';position:fixed;inset:0;
+      background-image:linear-gradient(rgba(255,68,68,.02) 1px,transparent 1px),
+        linear-gradient(90deg,rgba(255,68,68,.02) 1px,transparent 1px);
+      background-size:48px 48px;pointer-events:none}
+    .card{background:linear-gradient(145deg,#140a0a,#1a0d0d);
+      border:1px solid rgba(255,68,68,.3);border-radius:28px;padding:40px 36px;
+      width:100%;max-width:460px;text-align:center;
+      box-shadow:0 0 60px rgba(255,68,68,.06),0 32px 64px rgba(0,0,0,.6);
+      position:relative;animation:slideUp .5s cubic-bezier(.22,1,.36,1) both}
+    @keyframes slideUp{from{opacity:0;transform:translateY(28px)}to{opacity:1;transform:none}}
+    h1{font-size:1.5rem;color:#ff4444;margin-bottom:6px;font-weight:800}
+    .slot-num{font-size:3.2rem;font-weight:900;color:#00d4ff;margin:12px 0 4px}
+    .vehicle{font-family:'Courier New',monospace;font-size:1.15rem;
+      color:#ffd600;margin-bottom:18px}
+    .badges{display:flex;justify-content:center;gap:8px;flex-wrap:wrap;margin-bottom:18px}
+    .badge{display:inline-flex;align-items:center;gap:5px;border-radius:100px;
+      padding:5px 12px;font-size:.75rem;font-weight:600}
+    .badge.surge{background:rgba(255,214,0,.1);border:1px solid rgba(255,214,0,.4);color:#ffd600}
+    .badge.vip{background:rgba(255,214,0,.1);border:1px solid rgba(255,214,0,.4);color:#ffd600}
+    .badge.ev{background:rgba(105,240,174,.1);border:1px solid rgba(105,240,174,.3);color:#69f0ae}
+    .billing{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);
+      border-radius:14px;padding:18px;margin:16px 0;text-align:left}
     .row{display:flex;justify-content:space-between;padding:8px 0;
-      border-bottom:1px solid #2a2f4e;font-size:.9rem}
-    .row:last-child{border:none;margin-top:8px;padding-top:12px}
+      border-bottom:1px solid rgba(255,255,255,.06);font-size:.88rem}
+    .row:last-child{border:none;margin-top:6px;padding-top:10px}
     .row .lbl{color:#8892a4}
     .row .val{font-weight:600}
-    .fee-big{font-size:2.6rem;font-weight:900;color:#00e676;margin:10px 0}
-    .fasttag-info{background:#00d4ff11;border:1px solid #00d4ff44;border-radius:10px;
-      padding:12px;font-size:.8rem;color:#8892a4;margin-bottom:16px}
-    .pay-btn{width:100%;padding:14px;background:linear-gradient(135deg,#00e676,#00c853);
-      border:none;border-radius:10px;font-size:1rem;font-weight:700;cursor:pointer;
-      color:#000;transition:.15s}
+    .ev-row{background:rgba(105,240,174,.05);border-radius:6px;padding:6px 8px;margin-top:4px}
+    .fee-big{font-size:2.8rem;font-weight:900;color:#00e676;margin:10px 0}
+    .fasttag-info{background:rgba(0,212,255,.05);border:1px solid rgba(0,212,255,.2);
+      border-radius:10px;padding:12px;font-size:.78rem;color:#8892a4;margin-bottom:14px}
+    .voice-btn{background:rgba(0,212,255,.08);border:1px solid rgba(0,212,255,.25);
+      color:#00d4ff;border-radius:10px;padding:8px 16px;font-size:.78rem;
+      cursor:pointer;margin-bottom:10px;width:100%;transition:.15s}
+    .voice-btn:hover{background:rgba(0,212,255,.18)}
+    .pay-btn{width:100%;padding:14px;
+      background:linear-gradient(135deg,#00e676,#00c853);
+      border:none;border-radius:12px;font-size:.95rem;font-weight:700;
+      cursor:pointer;color:#000;transition:.15s;margin-bottom:8px}
     .pay-btn:hover{filter:brightness(1.08)}
-    .success{display:none;text-align:center;padding:10px 0}
+    .success{display:none;text-align:center;padding:12px 0}
     .check{font-size:3.5rem;animation:pop .4s ease}
     @keyframes pop{0%{transform:scale(0)}100%{transform:scale(1)}}
-    a{display:block;margin-top:18px;color:#00d4ff;text-decoration:none;font-size:.85rem}
+    .receipt-btn{display:none;width:100%;padding:11px;
+      background:rgba(0,212,255,.1);border:1px solid rgba(0,212,255,.3);
+      color:#00d4ff;border-radius:10px;font-size:.85rem;font-weight:600;
+      cursor:pointer;margin-top:10px;transition:.15s;text-decoration:none}
+    .receipt-btn:hover{background:rgba(0,212,255,.2)}
+    a.home{display:block;margin-top:12px;color:#8892a4;
+      text-decoration:none;font-size:.8rem}
+    a.home:hover{color:#00d4ff}
   </style>
 </head>
 <body>
 <div class="card">
   <div id="pay-section">
     <h1>🏁 Vehicle Exit</h1>
-    <div class="slot-num">P{{ slot.id }}</div>
-    <div class="vehicle">🚗 {{ slot.vehicle }}</div>
+    <div class="slot-num">P{{ slot.slot_id or slot.id }}</div>
+    <div class="vehicle">🚗 {{ slot.current_vehicle or slot.vehicle }}</div>
+
+    <div class="badges">
+      {% if billing.is_surge %}<span class="badge surge">⚡ Surge Rate</span>{% endif %}
+      {% if billing.is_vip   %}<span class="badge vip">👑 VIP 50% Off</span>{% endif %}
+      {% if billing.is_ev    %}<span class="badge ev">⚡ EV +₹50</span>{% endif %}
+    </div>
 
     <div class="billing">
-      <div class="row"><span class="lbl">Entry Time</span><span class="val">{{ billing.start }}</span></div>
-      <div class="row"><span class="lbl">Exit Time</span><span class="val">{{ billing.end }}</span></div>
-      <div class="row"><span class="lbl">Duration</span><span class="val" style="color:#ffd600">{{ billing.duration_str }}</span></div>
+      <div class="row"><span class="lbl">Entry Time</span>
+        <span class="val">{{ billing.entry[11:19] }}</span></div>
+      <div class="row"><span class="lbl">Exit Time</span>
+        <span class="val">{{ billing.exit[11:19] }}</span></div>
+      <div class="row"><span class="lbl">Duration</span>
+        <span class="val" style="color:#ffd600">{{ billing.duration_str }}</span></div>
+      <div class="row"><span class="lbl">Rate</span>
+        <span class="val">₹{{ billing.breakdown.rate_per_hour }}/hr</span></div>
+      {% if billing.is_ev %}
+      <div class="row ev-row"><span class="lbl">⚡ EV Charging Fee</span>
+        <span class="val" style="color:#69f0ae">+₹{{ billing.breakdown.ev_surcharge }}</span></div>
+      {% endif %}
+      {% if billing.is_vip %}
+      <div class="row"><span class="lbl">VIP Discount</span>
+        <span class="val" style="color:#ffd600">-₹{{ billing.breakdown.vip_savings }}</span></div>
+      {% endif %}
       <div class="row">
         <span class="lbl">Amount Due</span>
         <span class="val" style="color:#00e676;font-size:1.1rem">₹{{ billing.fee }}</span>
@@ -50,34 +98,87 @@
     </div>
 
     <div class="fasttag-info">
-      💳 Amount will be auto-debited from FASTag-linked bank account.<br>
-      No cash. No manual intervention.
+      💳 Amount auto-debited from FASTag-linked bank account.<br>No cash. No manual intervention.
     </div>
 
-    <button class="pay-btn" onclick="confirmExit()">✅ Confirm & Debit ₹{{ billing.fee }}</button>
+    <button class="voice-btn" onclick="speakFee()">🔊 Hear Fee Summary</button>
+    <button class="pay-btn" onclick="confirmExit()">
+      ✅ Confirm & Debit ₹{{ billing.fee }}
+    </button>
   </div>
 
   <div class="success" id="success">
     <div class="check">✅</div>
     <h2 style="color:#00e676;margin:12px 0">Payment Successful!</h2>
     <p style="color:#8892a4">₹{{ billing.fee }} debited from FASTag wallet</p>
-    <p style="color:#8892a4;font-size:.82rem;margin-top:8px">Thank you! Drive safely.</p>
-    <a href="/">← Back to Dashboard</a>
+    <p style="color:#8892a4;font-size:.8rem;margin-top:6px">Thank you! Drive safely.</p>
+    <a id="receipt-btn" class="receipt-btn" target="_blank">📄 Download PDF Receipt</a>
+    <a href="/" class="home">← Back to Dashboard</a>
   </div>
 </div>
 
 <script>
-async function confirmExit(){
-  const r = await fetch('/api/exit',{
-    method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({slot_id:'{{ slot.id }}'})
-  });
-  const d = await r.json();
-  if(d.success){
-    document.getElementById('pay-section').style.display='none';
-    document.getElementById('success').style.display='block';
+  const slotId = '{{ slot.slot_id or slot.id }}';
+  const fee    = {{ billing.fee }};
+  const isVip  = {{ 'true' if billing.is_vip  else 'false' }};
+  const isEv   = {{ 'true' if billing.is_ev   else 'false' }};
+  const isSurge = {{ 'true' if billing.is_surge else 'false' }};
+  const duration = '{{ billing.duration_str }}';
+
+  // ── Web Speech API ────────────────────────────────────────────────────────
+  function speakFee() {
+    if (!window.speechSynthesis) return;
+    window.speechSynthesis.cancel();
+    const msg = new SpeechSynthesisUtterance();
+    let text = `Exit processed for slot P ${slotId}. `;
+    text += `Parking duration: ${duration}. `;
+    if (isSurge) text += `Surge pricing was active. `;
+    if (isEv)    text += `E.V. charging surcharge of 50 rupees applied. `;
+    if (isVip)   text += `V.I.P. discount applied. `;
+    text += `Total amount due: ${fee} rupees. `;
+    text += `Payment will be debited from your FASTag wallet. Thank you. Drive safely.`;
+    msg.text   = text;
+    msg.rate   = 0.92;
+    msg.pitch  = 1.0;
+    msg.volume = 1.0;
+    window.speechSynthesis.speak(msg);
   }
-}
+
+  // Auto-speak on page load
+  window.addEventListener('load', () => setTimeout(speakFee, 500));
+
+  // ── Exit & receipt ────────────────────────────────────────────────────────
+  async function confirmExit() {
+    try {
+      const r = await fetch('/api/exit', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({slot_id: slotId})
+      });
+      const d = await r.json();
+      if (d.success) {
+        document.getElementById('pay-section').style.display = 'none';
+        document.getElementById('success').style.display     = 'block';
+
+        // Show PDF receipt button if URL returned
+        if (d.session && d.session.receipt_url) {
+          const btn = document.getElementById('receipt-btn');
+          btn.href  = d.session.receipt_url;
+          btn.style.display = 'block';
+        }
+
+        // Speak success
+        if (window.speechSynthesis) {
+          window.speechSynthesis.cancel();
+          const msg = new SpeechSynthesisUtterance(
+            `Payment of ${fee} rupees successful. Thank you for using SRM Parking. Drive safely.`
+          );
+          msg.rate = 0.92;
+          window.speechSynthesis.speak(msg);
+        }
+      }
+    } catch(e) { console.error(e); }
+  }
 </script>
 </body>
 </html>
