@@ -366,6 +366,23 @@ def scan_entry(slot_id):
 # EXIT
 # ══════════════════════════════════════════════════════════════════════════════
 
+
+@app.route("/scan/entry-confirm/<slot_id>/<vehicle_id>")
+def scan_entry_confirm(slot_id, vehicle_id):
+    try:
+        with get_db() as conn:
+            slot = conn.execute("SELECT * FROM slots WHERE id=?", (slot_id,)).fetchone()
+        if not slot:
+            return render_template("error.html", message="Slot not found")
+        is_vip = bool(slot["is_vip"])
+        is_ev  = slot_id in EV_SLOTS
+        return render_template("welcome.html",
+                               vehicle=vehicle_id, slot_id=slot_id,
+                               entry_time=slot["entry_time"] or datetime.now().isoformat(),
+                               is_vip=is_vip, is_ev=is_ev, plate_verified=True)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 @app.route("/scan/exit/<slot_id>")
 def scan_exit(slot_id):
     try:
