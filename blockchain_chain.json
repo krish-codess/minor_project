@@ -1,0 +1,32 @@
+[
+  {
+    "index": 0,
+    "timestamp": "2026-04-15T23:47:33.698721",
+    "previous_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+    "nonce": 0,
+    "transaction": {
+      "type": "genesis",
+      "note": "RFID parking ledger"
+    },
+    "hash": "5713f7db2d81a28ff6f58e093bb4b8ba581476a1993f25314cb2362e5bf67260"
+  },
+  {
+    "index": 1,
+    "timestamp": "2026-04-15T23:47:33.699265",
+    "previous_hash": "5713f7db2d81a28ff6f58e093bb4b8ba581476a1993f25314cb2362e5bf67260",
+    "nonce": 65,
+    "transaction": {
+      "transaction_id": 1,
+      "vehicle_id": "TEST-RESEARCH-01",
+      "slot_id": "1",
+      "entry_time": "2026-04-15T23:47:33.674455",
+      "exit_time": "2026-04-15T23:47:33.698721",
+      "timediff_fee": 10.0,
+      "contract_fee": 10.0,
+      "is_vip": false,
+      "is_surge": false,
+      "is_ev": false
+    },
+    "hash": "00073ddbd62ff89d083c7dcd42dc52351a6dc849f752e694822d5e50f49bfb59"
+  }
+]

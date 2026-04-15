@@ -4,6 +4,7 @@
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Welcome — Slot {{ slot_id }}</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
   <style>
     *{box-sizing:border-box;margin:0;padding:0}
     body{background:#080c14;color:#e8eaf0;font-family:'Segoe UI',sans-serif;
@@ -52,6 +53,10 @@
       border-radius:10px;padding:12px 14px;font-size:.8rem;color:#8892a4;
       line-height:1.6;margin-bottom:20px}
     .notice strong{color:#00e676}
+    .map-wrap{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);
+      border-radius:14px;padding:10px;margin-bottom:18px}
+    .map-title{font-size:.72rem;color:#8892a4;text-transform:uppercase;letter-spacing:.8px;margin:2px 4px 8px}
+    #slot-map{height:220px;width:100%;border-radius:10px;overflow:hidden}
     .voice-btn{background:rgba(0,212,255,.1);border:1px solid rgba(0,212,255,.3);
       color:#00d4ff;border-radius:10px;padding:9px 18px;font-size:.8rem;
       cursor:pointer;margin-bottom:14px;width:100%;transition:.15s}
@@ -114,6 +119,11 @@
     Your fee is calculated automatically and debited via FASTag.
   </div>
 
+  <div class="map-wrap">
+    <div class="map-title">Smart Slot Navigation (V2X Geotag)</div>
+    <div id="slot-map"></div>
+  </div>
+
   <button class="voice-btn" onclick="speak()">🔊 Replay Voice Announcement</button>
   <a href="/scan/exit/{{ slot_id }}" class="exit-link">🏁 Exit Now (Process Payment)</a>
   <a href="/" class="home-link">← Back to Dashboard</a>
@@ -148,6 +158,28 @@
 
   // Auto-speak on page load
   window.addEventListener('load', () => setTimeout(speak, 600));
+</script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<script>
+  const slotLat = Number("{{ slot_lat if slot_lat is not none else 12.82304 }}");
+  const slotLng = Number("{{ slot_lng if slot_lng is not none else 80.04445 }}");
+
+  const map = L.map('slot-map', {zoomControl:true}).setView([slotLat, slotLng], 19);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 22,
+    attribution: '&copy; OpenStreetMap contributors'
+  }).addTo(map);
+
+  const marker = L.marker([slotLat, slotLng]).addTo(map);
+  marker.bindPopup(`Assigned Slot P{{ slot_id }}<br>Lat: ${slotLat.toFixed(5)}, Lon: ${slotLng.toFixed(5)}`).openPopup();
+
+  L.circle([slotLat, slotLng], {
+    radius: 25,
+    color: '#00e676',
+    fillColor: '#00e676',
+    fillOpacity: 0.16,
+    weight: 2
+  }).addTo(map);
 </script>
 </body>
 </html>

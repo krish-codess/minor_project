@@ -24,6 +24,7 @@ import requests
 import time
 import threading
 import argparse
+import math
 import webbrowser
 import subprocess
 import platform
@@ -46,12 +47,20 @@ except ImportError:
     EASYOCR_OK = False
     print("⚠️  easyocr not found. Run: pip install easyocr --break-system-packages")
 
+try:
+    from federated_server import get_global_weights
+    from federated_client import run_round as run_federated_round
+    FL_OK = True
+except Exception:
+    FL_OK = False
+
 # ── Configuration ─────────────────────────────────────────────────────────────
 API_BASE        = "http://localhost:5000"
 CAMERA_INDEX    = 0
 COOLDOWN_SEC    = 8       # seconds before same QR can trigger again
 SCAN_INTERVAL   = 0.1     # seconds between frames
 OCR_INTERVAL    = 5       # run OCR every N frames (expensive)
+FL_ENABLED      = True
 
 # EV detection — plates starting with these prefixes go to slots 9/10
 EV_PLATE_PREFIXES = ("EV", "ELEC", "ZEV", "BEV")
@@ -66,6 +75,11 @@ EV_REGISTRY = {
 # ── State ─────────────────────────────────────────────────────────────────────
 recent_scans   = {}   # fasttag_id → last_scan_timestamp (cooldown)
 ocr_reader     = None  # lazy-loaded EasyOCR instance
+gps_listener   = None
+
+SRMIST_LAT = 12.82304
+SRMIST_LON = 80.04445
+GEOFENCE_RADIUS_M = 500.0
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -80,6 +94,42 @@ def load_ocr():
         ocr_reader = easyocr.Reader(["en"], verbose=False)
         print("✅ EasyOCR ready")
     return ocr_reader
+
+
+def _default_fl_weights() -> dict:
+    return {
+        "char_confidence_boost": 0.5,
+        "ocr_threshold": 0.4,
+        "hyphen_bonus": 0.05,
+        "digit_bonus": 0.05,
+        "alpha_bonus": 0.05,
+    }
+
+
+def _get_fl_weights() -> dict:
+    if not FL_ENABLED or not FL_OK:
+        return _default_fl_weights()
+    try:
+        w = get_global_weights()
+        if isinstance(w, dict) and w:
+            return {**_default_fl_weights(), **w}
+    except Exception:
+        pass
+    return _default_fl_weights()
+
+
+def _score_plate_candidate(conf: float, plate: str, weights: dict) -> float:
+    alpha_ratio = sum(1 for c in plate if c.isalpha()) / max(1, len(plate))
+    digit_ratio = sum(1 for c in plate if c.isdigit()) / max(1, len(plate))
+    hyphen_bonus = weights["hyphen_bonus"] if "-" in plate else 0.0
+
+    return (
+        conf
+        + weights["char_confidence_boost"] * 0.1
+        + weights["alpha_bonus"] * alpha_ratio
+        + weights["digit_bonus"] * digit_ratio
+        + hyphen_bonus
+    )
 
 
 def is_ev_plate(plate: str) -> bool:
@@ -142,14 +192,16 @@ def read_plate_from_frame(frame: np.ndarray) -> str:
         gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
         gray = cv2.convertScaleAbs(gray, alpha=1.5, beta=30)
 
+        weights = _get_fl_weights()
         results = reader.readtext(gray, detail=1, paragraph=False)
 
         # Filter: plate-like strings (5-12 chars, alphanumeric)
         candidates = []
         for (bbox, text, conf) in results:
             clean = "".join(c for c in text.upper() if c.isalnum() or c == "-")
-            if 5 <= len(clean) <= 12 and conf > 0.4:
-                candidates.append((conf, clean))
+            if 5 <= len(clean) <= 12 and conf > float(weights["ocr_threshold"]):
+                score = _score_plate_candidate(conf, clean, weights)
+                candidates.append((score, clean))
 
         if candidates:
             candidates.sort(reverse=True)
@@ -158,6 +210,58 @@ def read_plate_from_frame(frame: np.ndarray) -> str:
         print(f"[OCR] Error: {e}")
 
     return ""
+
+
+def _haversine_m(lat1, lon1, lat2, lon2) -> float:
+    r = 6371000.0
+    p1, p2 = math.radians(lat1), math.radians(lat2)
+    dlat = math.radians(lat2 - lat1)
+    dlon = math.radians(lon2 - lon1)
+    a = math.sin(dlat / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(dlon / 2) ** 2
+    return 2 * r * math.asin(min(1, math.sqrt(a)))
+
+
+class MockGPSListener:
+    def __init__(self, api_base: str):
+        self.api_base = api_base
+
+    def simulate_arrival(self, vehicle_id: str, slot_id: str):
+        path = [
+            (12.81900, 80.04050),
+            (12.82020, 80.04190),
+            (12.82130, 80.04310),
+            (12.82220, 80.04400),
+            (12.82300, 80.04440),
+        ]
+
+        for idx, (lat, lon) in enumerate(path):
+            distance = _haversine_m(lat, lon, SRMIST_LAT, SRMIST_LON)
+            eta = max(0, int((len(path) - idx - 1) * 30))
+
+            if distance <= GEOFENCE_RADIUS_M:
+                payload = {
+                    "vehicle_id": vehicle_id,
+                    "slot_id": slot_id,
+                    "location": {
+                        "lat": lat,
+                        "lon": lon,
+                        "distance_m": round(distance, 2),
+                    },
+                    "prediction": {
+                        "arrival_eta_sec": eta,
+                        "confidence": round(max(0.75, 0.95 - idx * 0.03), 2),
+                    },
+                    "event": "ARRIVAL_PREDICTION",
+                    "campus": "SRMIST",
+                }
+                try:
+                    requests.post(f"{self.api_base}/api/gps/arrival-prediction", json=payload, timeout=3)
+                    print(f"  🛰️ Arrival prediction: {vehicle_id} within {int(distance)}m, ETA {eta}s")
+                except Exception as e:
+                    print(f"  [GPS] Post failed: {e}")
+                break
+
+            time.sleep(0.4)
 
 
 def speak(text: str):
@@ -276,6 +380,13 @@ def process_scan(fasttag_id: str, frame: np.ndarray, api_base: str):
     if result.get("success"):
         print(f"  ✅ Entry logged successfully")
 
+        # Simulated FL local update after successful gate processing.
+        if FL_OK and FL_ENABLED:
+            try:
+                run_federated_round(client_id=f"gate-{platform.node() or 'laptop'}", dataset_size=80)
+            except Exception:
+                pass
+
         # Voice announcement
         if is_ev:
             speak(f"Welcome. E.V. vehicle detected. Slot P {slot_id} assigned. "
@@ -289,6 +400,16 @@ def process_scan(fasttag_id: str, frame: np.ndarray, api_base: str):
 
         # Open welcome page on laptop screen
         open_browser(f"{api_base}/scan/entry-confirm/{slot_id}/{fasttag_id}")
+
+        # Simulated V2X geofence arrival event (laptop-only mode).
+        global gps_listener
+        if gps_listener is None:
+            gps_listener = MockGPSListener(api_base)
+        threading.Thread(
+            target=gps_listener.simulate_arrival,
+            args=(fasttag_id, slot_id),
+            daemon=True,
+        ).start()
 
     elif result.get("alert") == "BLACKLIST":
         print(f"  🚨 BLACKLISTED VEHICLE: {fasttag_id}")
@@ -534,6 +655,7 @@ if __name__ == "__main__":
     print(f"  Camera : {'Simulation' if args.simulate else f'Index {args.camera}'}")
     print(f"  QR Lib : {'✅ pyzbar' if PYZBAR_OK else '❌ missing'}")
     print(f"  OCR    : {'✅ easyocr' if EASYOCR_OK else '❌ missing'}")
+    print(f"  FL     : {'✅ enabled' if FL_OK and FL_ENABLED else '⚠️ fallback'}")
     print("="*55)
 
     # Print note about entry-confirm route

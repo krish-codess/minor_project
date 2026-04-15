@@ -1,0 +1,37 @@
+{
+  "round": 2,
+  "global_weights": {
+    "char_confidence_boost": 0.535167,
+    "ocr_threshold": 0.391733,
+    "hyphen_bonus": 0.054068,
+    "digit_bonus": 0.07274,
+    "alpha_bonus": 0.05126
+  },
+  "clients": {
+    "gate-client-A": {
+      "last_round": 1,
+      "last_seen": "2026-04-15T23:47:33.590097",
+      "updates": 1
+    },
+    "gate-client-B": {
+      "last_round": 2,
+      "last_seen": "2026-04-15T23:47:33.617542",
+      "updates": 1
+    }
+  },
+  "history": [
+    {
+      "round": 1,
+      "num_clients": 1,
+      "total_samples": 60,
+      "timestamp": "2026-04-15T23:47:33.590097"
+    },
+    {
+      "round": 2,
+      "num_clients": 1,
+      "total_samples": 75,
+      "timestamp": "2026-04-15T23:47:33.617542"
+    }
+  ],
+  "updated_at": "2026-04-15T23:47:33.617542"
+}

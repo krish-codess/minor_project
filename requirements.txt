@@ -3,3 +3,7 @@ qrcode[pil]>=7.4
 Pillow>=10.0
 opencv-python>=4.8.0
 requests>=2.31.0
+reportlab>=4.0.0
+numpy>=1.26.0
+pyzbar>=0.1.9
+easyocr>=1.7.1

@@ -16,6 +16,7 @@ from flask import Flask, render_template, request, jsonify, send_file
 from datetime import datetime, timedelta
 from io import BytesIO
 import sqlite3, threading, random, string, os, time, socket
+from blockchain_ledger import mine_transaction, smart_contract_compute_fee
 
 from timediff import (
     compute_fee, is_vip_vehicle, get_effective_rate,
@@ -142,13 +143,71 @@ def init_db():
             mismatch    INTEGER NOT NULL DEFAULT 0,
             checked_at  TEXT NOT NULL DEFAULT (datetime('now','localtime'))
         );
+
+        CREATE TABLE IF NOT EXISTS performance_logs (
+            id                    INTEGER PRIMARY KEY AUTOINCREMENT,
+            component             TEXT NOT NULL,
+            mode                  TEXT NOT NULL,
+            slot_id               TEXT,
+            standard_latency_ms   REAL,
+            optimized_latency_ms  REAL,
+            speedup_factor        REAL,
+            frames                INTEGER,
+            notes                 TEXT,
+            created_at            TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+        );
+
+        CREATE TABLE IF NOT EXISTS blockchain_logs (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            transaction_id  INTEGER,
+            block_index     INTEGER,
+            block_hash      TEXT,
+            previous_hash   TEXT,
+            mined_at        TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+            payload         TEXT,
+            FOREIGN KEY(transaction_id) REFERENCES transactions(id)
+        );
+
+        CREATE TABLE IF NOT EXISTS arrival_predictions (
+            id            INTEGER PRIMARY KEY AUTOINCREMENT,
+            vehicle_id    TEXT,
+            slot_id       TEXT,
+            latitude      REAL,
+            longitude     REAL,
+            distance_m    REAL,
+            eta_seconds   INTEGER,
+            confidence    REAL,
+            created_at    TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+        );
         """)
+
+        cols = [r["name"] for r in conn.execute("PRAGMA table_info(slots)").fetchall()]
+        if "latitude" not in cols:
+            conn.execute("ALTER TABLE slots ADD COLUMN latitude REAL")
+        if "longitude" not in cols:
+            conn.execute("ALTER TABLE slots ADD COLUMN longitude REAL")
 
         # Seed slots
         if conn.execute("SELECT COUNT(*) FROM slots").fetchone()[0] == 0:
             conn.executemany("INSERT INTO slots(id, is_ev) VALUES(?,?)",
                              [(str(i), 1 if i in (9, 10) else 0)
                               for i in range(1, TOTAL_SLOTS + 1)])
+
+        # Seed geotags around SRMIST for P1-P10 (non-destructive updates)
+        base_lat = 12.82304
+        base_lon = 80.04445
+        for i in range(1, TOTAL_SLOTS + 1):
+            lat = round(base_lat + 0.00012 * ((i - 1) // 5), 7)
+            lon = round(base_lon + 0.00010 * ((i - 1) % 5), 7)
+            conn.execute(
+                """
+                UPDATE slots
+                SET latitude=COALESCE(latitude, ?),
+                    longitude=COALESCE(longitude, ?)
+                WHERE id=?
+                """,
+                (lat, lon, str(i))
+            )
 
         # Seed VIP members
         for vid in VIP_LIST:
@@ -184,6 +243,8 @@ def slot_to_dict(row) -> dict:
     d["occupied"]    = d["is_occupied"]
     d["vehicle"]     = d.get("current_vehicle")
     d["slot_id"]     = d.get("id")
+    d["latitude"]    = d.get("latitude")
+    d["longitude"]   = d.get("longitude")
     return d
 
 
@@ -357,7 +418,9 @@ def scan_entry(slot_id):
                                entry_time=now,
                                is_vip=vip,
                                is_ev=is_ev,
-                               plate_verified=plate_verified)
+                           plate_verified=plate_verified,
+                           slot_lat=slot["latitude"],
+                           slot_lng=slot["longitude"])
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -379,7 +442,9 @@ def scan_entry_confirm(slot_id, vehicle_id):
         return render_template("welcome.html",
                                vehicle=vehicle_id, slot_id=slot_id,
                                entry_time=slot["entry_time"] or datetime.now().isoformat(),
-                               is_vip=is_vip, is_ev=is_ev, plate_verified=True)
+                               is_vip=is_vip, is_ev=is_ev, plate_verified=True,
+                               slot_lat=slot["latitude"],
+                               slot_lng=slot["longitude"])
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -523,6 +588,15 @@ def api_exit():
                     is_surge=is_surge,
                     slot_id=slot_id
                 )
+
+                # Smart-contract parity computation for immutable billing audit.
+                contract_billing = smart_contract_compute_fee(
+                    slot["entry_time"],
+                    is_vip=bool(slot["is_vip"]),
+                    effective_rate=rate,
+                    is_surge=is_surge,
+                    slot_id=slot_id
+                )
                 exit_time = datetime.now().isoformat()
 
                 # Get transaction id for receipt link
@@ -539,6 +613,43 @@ def api_exit():
                     SELECT id FROM transactions
                     WHERE vehicle_id=? AND slot_id=? AND exit_time=?
                 """, (slot["current_vehicle"], slot_id, exit_time)).fetchone()
+
+                mined_block = None
+                if txn_id:
+                    tx_payload = {
+                        "transaction_id": txn_id["id"],
+                        "vehicle_id": slot["current_vehicle"],
+                        "slot_id": slot_id,
+                        "entry_time": slot["entry_time"],
+                        "exit_time": exit_time,
+                        "timediff_fee": billing["fee"],
+                        "contract_fee": contract_billing["fee"],
+                        "is_vip": bool(slot["is_vip"]),
+                        "is_surge": bool(is_surge),
+                        "is_ev": bool(slot_id in EV_SLOTS),
+                    }
+                    try:
+                        mined_block = mine_transaction(tx_payload)
+                        conn.execute(
+                            """
+                            INSERT INTO blockchain_logs(
+                                transaction_id, block_index, block_hash, previous_hash, payload
+                            ) VALUES (?,?,?,?,?)
+                            """,
+                            (
+                                txn_id["id"],
+                                mined_block.get("index"),
+                                mined_block.get("hash"),
+                                mined_block.get("previous_hash"),
+                                str(tx_payload),
+                            ),
+                        )
+                    except Exception as chain_err:
+                        mined_block = {
+                            "hash": None,
+                            "index": None,
+                            "error": str(chain_err),
+                        }
 
                 conn.execute(
                     "DELETE FROM active_sessions WHERE vehicle_id=?",
@@ -561,6 +672,8 @@ def api_exit():
             "entry_time":   slot["entry_time"],
             "exit_time":    exit_time,
             "receipt_url":  receipt_url,
+            "block_hash":   mined_block.get("hash") if mined_block else None,
+            "block_index":  mined_block.get("index") if mined_block else None,
             **billing,
         }})
 
@@ -974,6 +1087,50 @@ def camera_update():
                 log_change(conn, "camera", slot_id,
                            f'{{"occupied":{str(occupied).lower()}}}')
                 conn.commit()
+        return jsonify({"success": True})
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
+@app.route("/api/gps/arrival-prediction", methods=["POST"])
+def api_gps_arrival_prediction():
+    """
+    Receives mocked V2X geofence events from gate_monitor.py.
+    Body:
+    {
+      "vehicle_id": "FT-0001",
+      "slot_id": "3",
+      "location": {"lat":..., "lon":..., "distance_m":...},
+      "prediction": {"arrival_eta_sec": 45, "confidence": 0.92}
+    }
+    """
+    try:
+        data = request.json or {}
+        location = data.get("location", {})
+        pred = data.get("prediction", {})
+
+        with _db_lock:
+            with get_db() as conn:
+                conn.execute(
+                    """
+                    INSERT INTO arrival_predictions(
+                        vehicle_id, slot_id, latitude, longitude,
+                        distance_m, eta_seconds, confidence
+                    ) VALUES (?,?,?,?,?,?,?)
+                    """,
+                    (
+                        str(data.get("vehicle_id", "")).upper() or None,
+                        str(data.get("slot_id", "")) or None,
+                        location.get("lat"),
+                        location.get("lon"),
+                        location.get("distance_m"),
+                        pred.get("arrival_eta_sec"),
+                        pred.get("confidence"),
+                    ),
+                )
+                log_change(conn, "arrival_prediction", str(data.get("slot_id", "0")))
+                conn.commit()
+
         return jsonify({"success": True})
     except Exception as e:
         return jsonify({"success": False, "message": str(e)}), 500

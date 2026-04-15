@@ -9,7 +9,11 @@ New in v3.0:
 """
 
 from datetime import datetime, timedelta
+from collections import defaultdict
 import math
+import os
+import random
+import sqlite3
 
 # ── Rate configuration ────────────────────────────────────────────────────────
 RATE_PER_HOUR  = 30.0
@@ -20,6 +24,8 @@ GRACE_MINUTES  = 5
 MAX_DAILY_FEE  = 300.0
 EV_SURCHARGE   = 50.0    # ₹50 for EV-ready slots 9 & 10
 EV_SLOTS       = {9, 10, "9", "10"}
+DB_PATH        = "parking.db"
+MARL_MIN_HISTORY = 20
 
 # ── VIP registry (fallback if not in DB members table) ───────────────────────
 VIP_LIST = {
@@ -32,10 +38,96 @@ def is_vip_vehicle(vehicle_id: str) -> bool:
     return vehicle_id.strip().upper() in VIP_LIST
 
 
-def get_effective_rate(occupied_count: int, total_slots: int = 10) -> float:
-    """Return surge rate if >80% occupied, else base rate."""
+def _legacy_rate(occupied_count: int, total_slots: int = 10) -> float:
     ratio = occupied_count / total_slots if total_slots > 0 else 0
     return DYNAMIC_RATE if ratio > 0.80 else RATE_PER_HOUR
+
+
+def _load_hourly_history(db_path: str = DB_PATH):
+    if not os.path.exists(db_path):
+        return None
+
+    try:
+        with sqlite3.connect(db_path, timeout=5) as conn:
+            rows = conn.execute(
+                """
+                SELECT CAST(strftime('%H', entry_time) AS INTEGER) AS hour,
+                       COUNT(*) AS c
+                FROM transactions
+                WHERE entry_time IS NOT NULL
+                GROUP BY hour
+                ORDER BY hour
+                """
+            ).fetchall()
+    except Exception:
+        return None
+
+    if not rows:
+        return None
+
+    hourly_counts = {int(hour): int(cnt) for hour, cnt in rows if hour is not None}
+    total = sum(hourly_counts.values())
+    return {
+        "hourly_counts": hourly_counts,
+        "total": total,
+    }
+
+
+def _marl_predictive_rate(occupied_count: int, total_slots: int = 10) -> float:
+    """
+    Lightweight MARL-style predictive pricing:
+    - Agent A: near-term demand predictor from hourly history
+    - Agent B: occupancy pressure assessor from current occupancy
+    - Agent C: revenue stabilizer selecting rate action from Q-values
+    """
+    history = _load_hourly_history()
+    if not history or history["total"] < MARL_MIN_HISTORY:
+        return _legacy_rate(occupied_count, total_slots)
+
+    hourly_counts = history["hourly_counts"]
+    current_hour = datetime.now().hour
+    next_hour = (current_hour + 1) % 24
+
+    cur_cnt = hourly_counts.get(current_hour, 0)
+    nxt_cnt = hourly_counts.get(next_hour, 0)
+    global_avg = history["total"] / 24.0
+
+    demand_ratio = (0.45 * cur_cnt + 0.55 * nxt_cnt) / max(1.0, global_avg)
+    occupancy_ratio = occupied_count / total_slots if total_slots > 0 else 0.0
+
+    if demand_ratio >= 1.35:
+        demand_state = "high"
+    elif demand_ratio >= 0.90:
+        demand_state = "medium"
+    else:
+        demand_state = "low"
+
+    # Multi-agent action values (simulated learned Q-values)
+    q_table = {
+        "low": {"base": 0.92, "surge": 0.48},
+        "medium": {"base": 0.77, "surge": 0.86},
+        "high": {"base": 0.40, "surge": 1.05},
+    }
+
+    # Occupancy pressure and small exploration jitter emulate ongoing learning.
+    q_base = q_table[demand_state]["base"] - (occupancy_ratio * 0.08)
+    q_surge = q_table[demand_state]["surge"] + (occupancy_ratio * 0.10)
+    q_surge += random.uniform(-0.015, 0.015)
+
+    if demand_state == "high" and occupancy_ratio >= 0.55:
+        return DYNAMIC_RATE
+    if q_surge > q_base:
+        return DYNAMIC_RATE
+
+    return RATE_PER_HOUR
+
+
+def get_effective_rate(occupied_count: int, total_slots: int = 10) -> float:
+    """
+    MARL pricing hook (v4 research simulation).
+    Falls back to legacy occupancy threshold when history is sparse/unavailable.
+    """
+    return _marl_predictive_rate(occupied_count, total_slots)
 
 
 def parse_timestamp(ts) -> datetime:
