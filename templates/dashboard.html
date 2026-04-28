@@ -9,6 +9,8 @@
     :root{--bg:#080c14;--card:#0f1624;--card2:#151d2e;--accent:#00d4ff;--green:#00e676;--red:#ff4444;--yellow:#ffd600;--ev:#69f0ae;--text:#e8eaf0;--muted:#8892a4;--border:#1e2640;--radius:16px}
     *{box-sizing:border-box;margin:0;padding:0}
     body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;min-height:100vh}
+    body.security-breach{animation:strobe .48s linear 6}
+    @keyframes strobe{0%,100%{background:var(--bg)}50%{background:#2a0606}}
     body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(0,212,255,.025) 1px,transparent 1px),linear-gradient(90deg,rgba(0,212,255,.025) 1px,transparent 1px);background-size:48px 48px;pointer-events:none;z-index:0}
     main,header{position:relative;z-index:1}
     header{background:rgba(8,12,20,.92);backdrop-filter:blur(12px);border-bottom:1px solid var(--border);padding:16px 32px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:50}
@@ -24,6 +26,39 @@
     .surge-badge{background:rgba(255,214,0,.1);border:1px solid var(--yellow);color:var(--yellow);border-radius:20px;padding:4px 14px;font-size:.72rem;font-weight:700;display:none}
     .surge-badge.show{display:flex;align-items:center;gap:5px}
     main{padding:24px 32px;max-width:1400px;margin:0 auto}
+
+    .hero{display:grid;grid-template-columns:1fr;gap:16px;align-items:stretch;margin-bottom:24px}
+    .hero-panel{background:linear-gradient(145deg,rgba(0,212,255,.08),rgba(0,230,118,.05));border:1px solid rgba(0,212,255,.18);border-radius:24px;padding:22px;position:relative;overflow:hidden}
+    .hero-panel::after{content:'';position:absolute;inset:auto -40px -40px auto;width:180px;height:180px;border-radius:50%;background:radial-gradient(circle,rgba(0,212,255,.18),transparent 70%);pointer-events:none}
+    .hero-panel h2{font-size:1.4rem;line-height:1.15;color:#f3f7ff;text-transform:none;letter-spacing:-.4px;margin:0 0 10px}
+    .hero-panel p{color:var(--muted);font-size:.92rem;line-height:1.6;max-width:58ch}
+    /* QR scanner widget */
+    .scanner{display:flex;gap:12px;flex-direction:column}
+    .scanner-view{width:100%;height:320px;border-radius:12px;background:#030810;border:1px solid rgba(0,212,255,.12);position:relative;overflow:hidden;display:flex;align-items:center;justify-content:center}
+    .scanner-view img#cam-feed{width:100%;height:100%;object-fit:cover;border-radius:12px;position:relative;z-index:1}
+    .cam-offline{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;color:var(--muted);font-size:.85rem;z-index:2}
+    .cam-offline svg{opacity:.3}
+    .scan-bar{position:absolute;height:3px;left:6%;right:6%;background:linear-gradient(90deg,transparent,rgba(0,230,118,.95),transparent);box-shadow:0 0 14px rgba(0,230,118,.28);animation:scanMove 1.6s linear infinite;z-index:3}
+    @keyframes scanMove{0%{top:8%}50%{top:82%}100%{top:8%}}
+    .qr-flash{position:absolute;inset:0;border-radius:12px;background:rgba(0,230,118,.1);opacity:0;transition:opacity .15s;z-index:4;pointer-events:none}
+    .qr-flash.on{opacity:1}
+    .scanner-meta{display:flex;flex-direction:column;gap:6px}
+    .scanner-meta .status{font-weight:800;color:var(--accent)}
+    .scanner-meta .last{color:var(--muted);font-size:.9rem}
+    .scan-btn{background:rgba(0,212,255,.08);border:1px solid rgba(0,212,255,.18);color:var(--accent);padding:8px 10px;border-radius:8px;cursor:pointer;font-weight:700}
+    .scan-result-banner{border-radius:10px;padding:10px 14px;font-size:.83rem;font-weight:700;display:none;margin-top:6px}
+    .scan-result-banner.entry{background:rgba(0,230,118,.12);border:1px solid rgba(0,230,118,.4);color:var(--green)}
+    .scan-result-banner.exit{background:rgba(0,212,255,.1);border:1px solid rgba(0,212,255,.4);color:var(--accent)}
+    .scan-result-banner.error{background:rgba(255,68,68,.1);border:1px solid rgba(255,68,68,.4);color:var(--red)}
+    .hero-points{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:16px}
+    .hero-point{background:rgba(8,12,20,.55);border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:12px 12px 11px}
+    .hero-point strong{display:block;font-size:.78rem;color:var(--accent);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px}
+    .hero-point span{font-size:.82rem;color:var(--text);line-height:1.45}
+    .demo-state{font-size:1.15rem;font-weight:800;color:var(--green);line-height:1.2}
+    .demo-list{display:grid;gap:8px;margin-top:6px}
+    .demo-item{display:flex;gap:10px;align-items:flex-start;font-size:.84rem;color:var(--text);line-height:1.45}
+    .demo-dot{flex:0 0 10px;width:10px;height:10px;border-radius:50%;background:var(--green);margin-top:4px;box-shadow:0 0 0 4px rgba(0,230,118,.12)}
+    .demo-tag{display:inline-flex;align-items:center;gap:6px;width:max-content;background:rgba(0,212,255,.1);border:1px solid rgba(0,212,255,.28);color:var(--accent);border-radius:999px;padding:5px 10px;font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.5px}
 
     /* Alert banner */
     .alert-banner{background:rgba(255,68,68,.08);border:1px solid rgba(255,68,68,.3);border-radius:var(--radius);padding:14px 18px;margin-bottom:20px;display:none}
@@ -67,6 +102,29 @@
     .chart-card{background:var(--card);border-radius:var(--radius);padding:20px;border:1px solid var(--border)}
     .chart-card h3{font-size:.75rem;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:14px}
     .chart-wrap{position:relative;height:160px}
+
+    .leaderboard{background:var(--card);border-radius:var(--radius);border:1px solid var(--border);padding:18px;margin-bottom:30px}
+    .leaderboard-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+    .leaderboard h3{font-size:.82rem;color:var(--muted);text-transform:uppercase;letter-spacing:.6px}
+    .eco-row{display:grid;grid-template-columns:40px 1fr auto;gap:10px;align-items:center;padding:10px 8px;border-bottom:1px solid rgba(255,255,255,.05)}
+    .eco-row:last-child{border:none}
+    .eco-rank{font-weight:800;color:var(--accent)}
+    .eco-car{font-family:'Courier New',monospace;font-size:.83rem}
+    .eco-badges{display:flex;gap:6px;flex-wrap:wrap;margin-top:4px}
+    .eco-badge{font-size:.64rem;padding:2px 8px;border-radius:999px;border:1px solid rgba(105,240,174,.35);background:rgba(105,240,174,.09);color:var(--ev)}
+    .eco-points{font-weight:800;color:var(--green)}
+
+    .control-row{display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap}
+    .ctl-btn{background:rgba(0,212,255,.09);border:1px solid rgba(0,212,255,.3);color:var(--accent);border-radius:10px;padding:8px 12px;font-size:.76rem;font-weight:700;cursor:pointer}
+    .ctl-btn.warn{background:rgba(255,68,68,.1);border-color:rgba(255,68,68,.32);color:var(--red)}
+
+    .slot.reconfig-move{animation:rubikMove .8s ease}
+    @keyframes rubikMove{
+      0%{transform:translate(0,0)}
+      30%{transform:translate(var(--dx,0),var(--dy,0))}
+      70%{transform:translate(var(--dx,0),var(--dy,0))}
+      100%{transform:translate(0,0)}
+    }
 
     .log-wrap{background:var(--card);border-radius:var(--radius);border:1px solid var(--border);overflow:hidden;margin-bottom:36px}
     table{width:100%;border-collapse:collapse;font-size:.83rem}
@@ -125,9 +183,33 @@
 
 <main>
 
-  <!-- Security Alert Banner -->
-  <div class="alert-banner" id="alert-banner">
-    <h3>🚨 Security Alerts</h3>
+  <section class="hero">
+    <div class="hero-panel">
+      <h2>QR Scanner — live camera status</h2>
+      <p>Scanner shows live decoding activity and mirrors camera updates from the gate. Use the small test button to send a simulated scan to the backend.</p>
+      <div style="margin-top:12px" class="scanner">
+        <div class="scanner-view" id="scanner-view">
+          <img id="cam-feed" src="/api/camera/stream" alt="camera feed"
+               onerror="this.style.display='none';document.getElementById('cam-offline').style.display='flex'"
+               onload="document.getElementById('cam-offline').style.display='none';this.style.display='block'"/>
+          <div class="cam-offline" id="cam-offline">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M15 10l4.553-2.07A1 1 0 0121 8.845v6.31a1 1 0 01-1.447.894L15 14M3 8a2 2 0 012-2h10a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V8z"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+            <span>Camera feed offline</span>
+            <span style="font-size:.75rem">Start gate_monitor or run app.py</span>
+          </div>
+          <div class="scan-bar" id="scan-bar"></div>
+          <div class="qr-flash" id="qr-flash"></div>
+        </div>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+          <div class="status" id="scanner-status">Waiting for camera…</div>
+          <button class="scan-btn" onclick="sendSimulatedScan()">Send simulated scan</button>
+        </div>
+        <div class="last">Last QR: <span id="scanner-qr">—</span></div>
+        <div class="last">Last Slot: <span id="scanner-slot">—</span></div>
+        <div class="scan-result-banner" id="scan-result"></div>
+      </div>
+    </div>
+
     <div id="alert-list"></div>
   </div>
 
@@ -136,6 +218,19 @@
     <div class="stat-card"><div class="val green" id="s-free">—</div><div class="lbl">Available</div></div>
     <div class="stat-card"><div class="val red" id="s-occ">—</div><div class="lbl">Occupied</div></div>
     <div class="stat-card"><div class="val accent" id="s-rev">₹0</div><div class="lbl">Revenue Today</div></div>
+  </div>
+
+  <div class="control-row">
+    <button class="ctl-btn" onclick="runReconfigureDemo()">Simulate VIP Rubik Reconfiguration</button>
+    <button class="ctl-btn warn" onclick="triggerTailgateDemo()">Trigger Tailgating Security Alert</button>
+  </div>
+
+  <div class="leaderboard">
+    <div class="leaderboard-head">
+      <h3>Eco-Warrior Leaderboard</h3>
+      <span style="font-size:.74rem;color:var(--muted)">Green Credits</span>
+    </div>
+    <div id="eco-board"></div>
   </div>
 
   <h2>Parking Slots <span style="color:var(--ev);font-size:.75rem;margin-left:8px">⚡ P9 & P10 = EV Ready (+₹50)</span></h2>
@@ -200,6 +295,41 @@
 
 <script>
 let allSlots=[],pendingExit=null,pollCursor=0,revenueChart,peakChart;
+let audioCtx=null,beepTimer=null;
+
+function ensureAudio(){
+  if(!audioCtx) audioCtx=new (window.AudioContext||window.webkitAudioContext)();
+}
+
+function playSirenBurst(){
+  try{
+    ensureAudio();
+    const osc=audioCtx.createOscillator();
+    const gain=audioCtx.createGain();
+    const now=audioCtx.currentTime;
+    osc.type='sawtooth';
+    osc.frequency.setValueAtTime(580,now);
+    osc.frequency.exponentialRampToValueAtTime(920,now+.16);
+    gain.gain.setValueAtTime(.0001,now);
+    gain.gain.exponentialRampToValueAtTime(.08,now+.02);
+    gain.gain.exponentialRampToValueAtTime(.0001,now+.18);
+    osc.connect(gain).connect(audioCtx.destination);
+    osc.start(now);osc.stop(now+.2);
+  }catch(e){/* ignore audio errors */}
+}
+
+function triggerBreachFx(){
+  document.body.classList.remove('security-breach');
+  void document.body.offsetWidth;
+  document.body.classList.add('security-breach');
+  clearInterval(beepTimer);
+  let count=0;
+  beepTimer=setInterval(()=>{
+    playSirenBurst();
+    count+=1;
+    if(count>=6) clearInterval(beepTimer);
+  },220);
+}
 
 function initCharts(){
   const base={responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
@@ -231,6 +361,7 @@ function renderAlerts(alerts){
   const list=document.getElementById('alert-list');
   if(!alerts||!alerts.length){banner.classList.remove('show');return;}
   banner.classList.add('show');
+  if(alerts.some(a=>a.alert_type==='UNAUTHORIZED_ACCESS')) triggerBreachFx();
   list.innerHTML=alerts.map(a=>`
     <div class="alert-item">
       <span class="alert-type">${a.alert_type}</span>
@@ -288,16 +419,150 @@ function renderLog(log){
   </tr>`).join('');
 }
 
+function renderEco(leaders){
+  const box=document.getElementById('eco-board');
+  if(!leaders||!leaders.length){
+    box.innerHTML='<div style="color:var(--muted);font-size:.82rem;padding:8px">No eco score data yet.</div>';
+    return;
+  }
+  box.innerHTML=leaders.map((x,i)=>`
+    <div class="eco-row">
+      <div class="eco-rank">#${i+1}</div>
+      <div>
+        <div class="eco-car">${x.vehicle_id}</div>
+        <div class="eco-badges">${(x.badges||[]).map(b=>`<span class="eco-badge">${b}</span>`).join('')}</div>
+      </div>
+      <div class="eco-points">${x.total_points} pts</div>
+    </div>
+  `).join('');
+}
+
+function slotCardEl(id){
+  return [...document.querySelectorAll('.slot')].find(el=>{
+    const n=el.querySelector('.slot-num');
+    return n && n.textContent.trim()==='P'+id;
+  });
+}
+
+function updateScannerStatus({qr='',slot='',state=''}={}){
+  const sEl=document.getElementById('scanner-status');
+  const qEl=document.getElementById('scanner-qr');
+  const slEl=document.getElementById('scanner-slot');
+  if(sEl) sEl.textContent = state ? state.toString() : 'Idle';
+  if(qEl) qEl.textContent = qr || '—';
+  if(slEl) slEl.textContent = slot || '—';
+  // flash the scanner view briefly
+  const view=document.getElementById('scanner-view');
+  if(view){
+    view.style.boxShadow='0 8px 40px rgba(0,230,118,.08)';
+    setTimeout(()=>view.style.boxShadow='',350);
+  }
+}
+
+async function sendSimulatedScan(){
+  const qr='FT-A1B2';
+  await processQRScan(qr);
+}
+
+async function processQRScan(qr){
+  updateScannerStatus({qr, state:'Processing…'});
+  try{
+    const r=await fetch('/api/qr-scan',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({qr})});
+    const d=await r.json();
+    const banner=document.getElementById('scan-result');
+    if(d.success){
+      const isEntry=d.action==='entry';
+      banner.className='scan-result-banner '+(isEntry?'entry':'exit');
+      banner.textContent=d.message;
+      banner.style.display='block';
+      updateScannerStatus({qr,slot:d.slot_id,state:isEntry?'Entry logged':'Exit processed'});
+      flashQR();
+      setTimeout(()=>{banner.style.display='none';},5000);
+      setTimeout(()=>fetchAll(),400);
+    }else{
+      banner.className='scan-result-banner error';
+      banner.textContent=d.message||'Scan failed';
+      banner.style.display='block';
+      updateScannerStatus({qr,state:'Failed'});
+      setTimeout(()=>{banner.style.display='none';},4000);
+    }
+  }catch(e){
+    updateScannerStatus({qr,state:'Network error'});
+  }
+}
+
+function flashQR(){
+  const f=document.getElementById('qr-flash');
+  if(!f) return;
+  f.classList.add('on');
+  setTimeout(()=>f.classList.remove('on'),300);
+}
+
+function checkCameraFeed(){
+  const img=document.getElementById('cam-feed');
+  if(!img) return;
+  // probe snapshot endpoint — if 204 feed is offline, show placeholder
+  fetch('/api/camera/snapshot',{method:'GET'}).then(r=>{
+    if(r.status===204){
+      img.style.display='none';
+      document.getElementById('cam-offline').style.display='flex';
+      updateScannerStatus({state:'Camera offline — run app.py to start gate_monitor'});
+    } else {
+      document.getElementById('cam-offline').style.display='none';
+      img.style.display='block';
+      updateScannerStatus({state:'Live camera feed active'});
+    }
+  }).catch(()=>{});
+}
+
+// Camera feed is served as MJPEG from gate_monitor via /api/camera/stream
+// QR decoding is done by gate_monitor (Python/OpenCV) — results arrive via long-poll
+
+async function runReconfigureDemo(){
+  try{
+    const r=await fetch('/api/reconfigure/demo',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({vehicle_id:'SRM-VIP-01',preferred_slot:'1'})});
+    const d=await r.json();
+    if(!d.success){alert(d.message||'Reconfiguration not available right now');return;}
+    (d.movement_plan||[]).forEach((mv,idx)=>{
+      setTimeout(()=>{
+        const from=slotCardEl(mv.from);
+        if(!from) return;
+        const dx=mv.axis==='horizontal'?'34px':'0px';
+        const dy=mv.axis==='vertical'?'54px':'0px';
+        from.style.setProperty('--dx',dx);
+        from.style.setProperty('--dy',dy);
+        from.classList.remove('reconfig-move');
+        void from.offsetWidth;
+        from.classList.add('reconfig-move');
+      },idx*160);
+    });
+    if(window.speechSynthesis){
+      const msg=new SpeechSynthesisUtterance(`Rubik reconfiguration complete. Opening created at slot P ${d.assigned_slot}.`);
+      msg.rate=.92;window.speechSynthesis.speak(msg);
+    }
+  }catch(e){console.error(e);}
+}
+
+async function triggerTailgateDemo(){
+  try{
+    await fetch('/api/security/demo-tailgate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({slot_id:'3'})});
+    fetchAll();
+  }catch(e){console.error(e);}
+}
+
 async function fetchAll(){
   try{
-    const[sR,lR,aR,alR]=await Promise.all([
+    const[sR,lR,aR,alR,eR]=await Promise.all([
       fetch('/api/slots'),fetch('/api/log'),
-      fetch('/api/analytics'),fetch('/api/security/alerts')]);
+      fetch('/api/analytics'),fetch('/api/security/alerts'),fetch('/api/eco/leaderboard')]);
     applySlots(await sR.json());
     const log=await lR.json();
     document.getElementById('s-rev').textContent='₹'+log.reduce((s,x)=>s+(x.total_fee||x.fee||0),0).toFixed(0);
     renderLog(log);updateCharts(await aR.json());
     renderAlerts(await alR.json());
+    const eco=await eR.json();
+    renderEco(eco.leaders||[]);
   }catch(e){console.error(e);}
 }
 
@@ -313,11 +578,36 @@ async function longPoll(){
       pollCursor=d.cursor||pollCursor;
       if(d.slots&&d.slots.length)applySlots(d.slots);
       if(d.alerts)renderAlerts(d.alerts);
-      if(d.events&&d.events.some(e=>['exit','alert'].includes(e.event_type))){
+      // reflect gate_monitor entry/exit events in scanner widget
+      if(d.events && d.events.length){
+        d.events.forEach(ev=>{
+          try{
+            const t=(ev.event_type||'').toLowerCase();
+            if(t==='entry'||t==='exit'){
+              const p=ev.payload?JSON.parse(ev.payload):{};
+              const vehicle=p.vehicle||ev.vehicle_id||'';
+              const slot=ev.slot_id||'';
+              updateScannerStatus({qr:vehicle,slot:slot,state:t==='entry'?'Entry logged':'Exit processed'});
+              flashQR();
+              const banner=document.getElementById('scan-result');
+              if(banner){
+                banner.className='scan-result-banner '+(t==='entry'?'entry':'exit');
+                banner.textContent=t==='entry'?`Entry: ${vehicle} → Slot P${slot}`:`Exit: ${vehicle} from Slot P${slot}`;
+                banner.style.display='block';
+                setTimeout(()=>{banner.style.display='none';},5000);
+              }
+            }
+          }catch(e){/* swallow per-event errors */}
+        });
+      }
+      if(d.events&&d.events.some(e=>['exit','alert','reconfigure','ev_upgrade','entry'].includes(e.event_type))){
         const[lR,aR]=await Promise.all([fetch('/api/log'),fetch('/api/analytics')]);
         const log=await lR.json();
         document.getElementById('s-rev').textContent='₹'+log.reduce((s,x)=>s+(x.total_fee||x.fee||0),0).toFixed(0);
         renderLog(log);updateCharts(await aR.json());
+        const eR=await fetch('/api/eco/leaderboard');
+        const eco=await eR.json();
+        renderEco(eco.leaders||[]);
       }
     }catch(e){badge.classList.remove('show');await sleep(3000);}
   }
@@ -353,7 +643,11 @@ async function submitEntry(){
       closeModal('entry-modal');fetchAll();
       // Voice feedback
       if(window.speechSynthesis){
-        const msg=new SpeechSynthesisUtterance(`Entry logged. Slot P ${slotId} assigned to ${vehicle}.`);
+        const spokenSlot=d.slot_id||slotId;
+        const msgText=d.reconfigured
+          ? `VIP reconfiguration active. Slot P ${spokenSlot} assigned to ${vehicle}.`
+          : `Entry logged. Slot P ${spokenSlot} assigned to ${vehicle}.`;
+        const msg=new SpeechSynthesisUtterance(msgText);
         msg.rate=0.9;window.speechSynthesis.speak(msg);
       }
     } else {
@@ -399,7 +693,11 @@ async function confirmPayment(){
       }
       fetchAll();
       if(window.speechSynthesis){
-        const msg=new SpeechSynthesisUtterance(`Payment of ${d.session?.fee||''} rupees successful. Drive safely.`);
+        const points=d.session?.green_credits?.points;
+        const msgText=points
+          ? `Payment of ${d.session?.fee||''} rupees successful. You earned ${points} Green Credits.`
+          : `Payment of ${d.session?.fee||''} rupees successful. Drive safely.`;
+        const msg=new SpeechSynthesisUtterance(msgText);
         msg.rate=0.9;window.speechSynthesis.speak(msg);
       }
     }
@@ -409,6 +707,9 @@ async function confirmPayment(){
 function closeModal(id){document.getElementById(id).classList.remove('open');}
 
 initCharts();fetchAll();longPoll();
+// Check if gate_monitor camera feed is available
+checkCameraFeed();
+setInterval(checkCameraFeed, 8000);
 </script>
 </body>
 </html>

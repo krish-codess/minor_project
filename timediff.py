@@ -217,6 +217,64 @@ def compute_fee(
     }
 
 
+def compute_green_credits(
+    entry_ts,
+    exit_ts=None,
+    slot_id=None,
+    effective_rate: float = None,
+    is_surge: bool = False,
+) -> dict:
+    """
+    Eco gamification model for Green Credits.
+
+    Credit triggers:
+    - Prompt Parker: <= 30 min session
+    - EV Champion: parked in EV-ready slots
+    - Off-Peak Owl: non-surge period (base pricing hours)
+    """
+    t_entry = parse_timestamp(entry_ts)
+    t_exit = parse_timestamp(exit_ts) if exit_ts else datetime.now()
+
+    duration_min = max(0, int((t_exit - t_entry).total_seconds()) // 60)
+    on_ev_slot = slot_id in EV_SLOTS
+
+    active_rate = DYNAMIC_RATE if is_surge else (
+        effective_rate if effective_rate is not None else RATE_PER_HOUR
+    )
+    off_peak = active_rate <= RATE_PER_HOUR
+
+    points = 5  # participation baseline
+    reasons = ["Session Completed (+5)"]
+    badges = []
+
+    if duration_min <= 30:
+        points += 25
+        reasons.append("Prompt Parking <= 30 min (+25)")
+        badges.append("Prompt Parker")
+
+    if on_ev_slot:
+        points += 20
+        reasons.append("Used EV-ready slot (+20)")
+        badges.append("EV Champion")
+
+    if off_peak:
+        points += 15
+        reasons.append("Off-peak arrival window (+15)")
+        badges.append("Off-Peak Owl")
+
+    if points >= 45:
+        badges.append("Eco-Driver")
+
+    return {
+        "points": points,
+        "duration_min": duration_min,
+        "off_peak": off_peak,
+        "is_ev": on_ev_slot,
+        "badges": sorted(set(badges)),
+        "reasons": reasons,
+    }
+
+
 def format_duration(seconds: int) -> str:
     m = seconds // 60
     return f"{m // 60}h {m % 60}m"

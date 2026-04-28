@@ -3,183 +3,304 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Welcome — Slot {{ slot_id }}</title>
+  <title>Welcome - Slot {{ slot_id }}</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
   <style>
     *{box-sizing:border-box;margin:0;padding:0}
-    body{background:#080c14;color:#e8eaf0;font-family:'Segoe UI',sans-serif;
-      min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;overflow:hidden}
-    body::before{content:'';position:fixed;inset:0;
-      background-image:linear-gradient(rgba(0,212,255,.025) 1px,transparent 1px),
-        linear-gradient(90deg,rgba(0,212,255,.025) 1px,transparent 1px);
-      background-size:48px 48px;pointer-events:none}
-    .card{background:linear-gradient(145deg,#0d1524,#111827);
-      border:1px solid rgba(0,230,118,.25);border-radius:28px;padding:44px 38px;
-      width:100%;max-width:460px;text-align:center;
-      box-shadow:0 0 80px rgba(0,230,118,.07),0 32px 64px rgba(0,0,0,.6);
-      position:relative;animation:slideUp .5s cubic-bezier(.22,1,.36,1) both}
-    @keyframes slideUp{from{opacity:0;transform:translateY(28px)}to{opacity:1;transform:none}}
-    .ring{width:96px;height:96px;border-radius:50%;
-      background:radial-gradient(circle,rgba(0,230,118,.15),transparent 70%);
-      border:2px solid rgba(0,230,118,.5);
-      display:flex;align-items:center;justify-content:center;
-      margin:0 auto 22px;font-size:2.6rem;
-      animation:ringPulse 2s ease-in-out infinite}
-    @keyframes ringPulse{0%,100%{box-shadow:0 0 0 0 rgba(0,230,118,.4)}50%{box-shadow:0 0 0 18px rgba(0,230,118,0)}}
-    h1{font-size:1.6rem;font-weight:800;color:#00e676;letter-spacing:-.5px;margin-bottom:6px}
-    .sub{color:#8892a4;font-size:.88rem;margin-bottom:28px}
-    .badges{display:flex;justify-content:center;gap:10px;flex-wrap:wrap;margin-bottom:24px}
-    .badge{display:inline-flex;align-items:center;gap:6px;border-radius:100px;
-      padding:6px 14px;font-size:.78rem;font-weight:600;letter-spacing:.3px}
-    .badge.fasttag{background:rgba(0,212,255,.1);border:1px solid rgba(0,212,255,.4);color:#00d4ff}
-    .badge.lpr{background:rgba(0,230,118,.1);border:1px solid rgba(0,230,118,.4);color:#00e676}
-    .badge.lpr.fail{background:rgba(255,68,68,.1);border:1px solid rgba(255,68,68,.4);color:#ff4444}
-    .badge.vip{background:rgba(255,214,0,.1);border:1px solid rgba(255,214,0,.4);color:#ffd600}
-    .badge.ev{background:rgba(0,230,118,.1);border:1px solid rgba(0,230,118,.3);color:#69f0ae}
-    .dot{width:6px;height:6px;border-radius:50%;background:currentColor;animation:blink 1s infinite}
-    @keyframes blink{0%,100%{opacity:1}50%{opacity:.2}}
-    .info-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:24px}
-    .info-box{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);
-      border-radius:12px;padding:14px 10px}
-    .info-box.big{grid-column:1/-1}
-    .info-box .lbl{font-size:.68rem;color:#8892a4;text-transform:uppercase;
-      letter-spacing:.8px;margin-bottom:5px}
-    .info-box .val{font-size:1.05rem;font-weight:700;color:#e8eaf0}
-    .info-box.slot .val{font-size:1.9rem;color:#00d4ff}
-    .ev-notice{background:rgba(105,240,174,.08);border:1px solid rgba(105,240,174,.3);
-      border-radius:10px;padding:12px 14px;font-size:.8rem;color:#69f0ae;
-      margin-bottom:18px;display:none}
-    .notice{background:rgba(0,230,118,.05);border:1px solid rgba(0,230,118,.18);
-      border-radius:10px;padding:12px 14px;font-size:.8rem;color:#8892a4;
-      line-height:1.6;margin-bottom:20px}
-    .notice strong{color:#00e676}
-    .map-wrap{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);
-      border-radius:14px;padding:10px;margin-bottom:18px}
-    .map-title{font-size:.72rem;color:#8892a4;text-transform:uppercase;letter-spacing:.8px;margin:2px 4px 8px}
-    #slot-map{height:220px;width:100%;border-radius:10px;overflow:hidden}
-    .voice-btn{background:rgba(0,212,255,.1);border:1px solid rgba(0,212,255,.3);
-      color:#00d4ff;border-radius:10px;padding:9px 18px;font-size:.8rem;
-      cursor:pointer;margin-bottom:14px;width:100%;transition:.15s}
-    .voice-btn:hover{background:rgba(0,212,255,.2)}
-    .exit-link{display:block;padding:13px;
-      background:linear-gradient(135deg,#00e676,#00c853);
-      border-radius:12px;color:#000;font-weight:700;font-size:.93rem;
-      text-decoration:none;transition:.2s;margin-bottom:10px}
-    .exit-link:hover{filter:brightness(1.1);transform:translateY(-1px)}
-    .home-link{display:block;color:#8892a4;font-size:.8rem;
-      text-decoration:none;padding:6px;transition:.15s}
-    .home-link:hover{color:#00d4ff}
-    {% if is_vip %}
-    .card{border-color:rgba(255,214,0,.3)}
-    .ring{border-color:rgba(255,214,0,.6);background:radial-gradient(circle,rgba(255,214,0,.12),transparent 70%)}
-    @keyframes ringPulse{0%,100%{box-shadow:0 0 0 0 rgba(255,214,0,.4)}50%{box-shadow:0 0 0 18px rgba(255,214,0,0)}}
-    {% endif %}
+    :root{--bg:#080c14;--card:#10182a;--text:#e8eaf0;--muted:#8f9ab0;--accent:#00d4ff;--green:#00e676;--ev:#69f0ae;--warn:#ffd600}
+    body{background:var(--bg);color:var(--text);font-family:'Segoe UI',sans-serif;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:18px}
+    .card{width:100%;max-width:520px;background:linear-gradient(145deg,#0d1524,#111827);border:1px solid rgba(0,230,118,.25);border-radius:26px;padding:26px;box-shadow:0 24px 56px rgba(0,0,0,.55)}
+    h1{font-size:1.55rem;color:var(--green);margin-bottom:6px}
+    .sub{font-size:.86rem;color:var(--muted);margin-bottom:16px}
+    .row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px}
+    .box{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:12px}
+    .lbl{font-size:.68rem;color:var(--muted);text-transform:uppercase;letter-spacing:.7px}
+    .val{font-size:1rem;font-weight:700}
+    .slot{font-size:1.8rem;color:var(--accent)}
+    .badges{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+    .badge{font-size:.74rem;padding:5px 10px;border-radius:999px;border:1px solid transparent}
+    .b-ok{color:var(--green);border-color:rgba(0,230,118,.35);background:rgba(0,230,118,.1)}
+    .b-vip{color:var(--warn);border-color:rgba(255,214,0,.35);background:rgba(255,214,0,.1)}
+    .b-ev{color:var(--ev);border-color:rgba(105,240,174,.35);background:rgba(105,240,174,.1)}
+    .notice{font-size:.8rem;color:var(--muted);line-height:1.5;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.03);border-radius:10px;padding:10px;margin-bottom:12px}
+    .map-wrap{border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:8px;margin-bottom:12px}
+    #slot-map{height:200px;border-radius:8px;overflow:hidden}
+
+    .ar-panel{display:none;border:1px solid rgba(0,230,118,.35);background:rgba(0,230,118,.06);border-radius:12px;padding:12px;margin-bottom:12px}
+    .ar-panel.show{display:block}
+    .ar-head{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:8px}
+    .ar-title{font-size:.84rem;color:var(--green);font-weight:700;letter-spacing:.4px;text-transform:uppercase}
+    .pill{font-size:.72rem;color:#03140a;background:var(--green);padding:3px 8px;border-radius:999px;font-weight:700}
+    .ar-view{position:relative;border-radius:10px;overflow:hidden;background:#03070d;min-height:220px}
+    #ar-video{width:100%;height:260px;object-fit:cover;display:none}
+    #ar-overlay{position:absolute;inset:0;pointer-events:none}
+    .ar-controls{display:flex;gap:8px;margin-top:8px}
+    .btn{border:none;border-radius:10px;padding:10px 12px;font-size:.8rem;font-weight:700;cursor:pointer;flex:1}
+    .btn-primary{background:linear-gradient(135deg,#00e676,#00c853);color:#001a0f}
+    .btn-secondary{background:rgba(0,212,255,.12);border:1px solid rgba(0,212,255,.35);color:var(--accent)}
+    .btn-dark{background:rgba(255,255,255,.07);color:var(--text);border:1px solid rgba(255,255,255,.15)}
+    .foot{display:flex;gap:8px;margin-top:8px}
+    .link{display:block;text-decoration:none;text-align:center;padding:11px;border-radius:10px;font-weight:700}
+    .exit{background:linear-gradient(135deg,#00e676,#00c853);color:#001a0f;flex:1}
+    .home{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.16);color:var(--muted);flex:1}
+    .status{font-size:.76rem;color:var(--muted);margin-top:6px;min-height:18px}
+    @media(max-width:640px){.row{grid-template-columns:1fr}}
   </style>
 </head>
 <body>
 <div class="card">
-  <div class="ring">{% if is_vip %}👑{% else %}✅{% endif %}</div>
-  <h1>{% if is_vip %}VIP Entry Logged!{% else %}Entry Successful!{% endif %}</h1>
-  <p class="sub">FASTag scanned and registered automatically</p>
+  <h1>{% if is_vip %}VIP Entry Logged{% else %}Entry Successful{% endif %}</h1>
+  <p class="sub">Spatial navigation and voice assistant enabled for last-mile guidance.</p>
 
   <div class="badges">
-    <span class="badge fasttag"><span class="dot"></span>FASTag: {{ vehicle }}</span>
-    {% if plate_verified %}
-    <span class="badge lpr">🔍 Plate Verified</span>
-    {% else %}
-    <span class="badge lpr fail">⚠️ Plate Mismatch</span>
-    {% endif %}
-    {% if is_vip %}<span class="badge vip">👑 VIP</span>{% endif %}
-    {% if is_ev %}<span class="badge ev">⚡ EV Slot</span>{% endif %}
+    <span class="badge b-ok">FASTag {{ vehicle }}</span>
+    <span class="badge b-ok">Plate {% if plate_verified %}Verified{% else %}Check Needed{% endif %}</span>
+    {% if is_vip %}<span class="badge b-vip">VIP</span>{% endif %}
+    {% if is_ev %}<span class="badge b-ev" id="ev-badge">EV Slot</span>{% else %}<span class="badge b-ev" id="ev-badge" style="display:none">EV Slot</span>{% endif %}
   </div>
 
-  <div class="info-grid">
-    <div class="info-box slot big">
-      <div class="lbl">Assigned Slot</div>
-      <div class="val">P{{ slot_id }}</div>
-    </div>
-    <div class="info-box">
-      <div class="lbl">Entry Time</div>
-      <div class="val" id="entry-time">—</div>
-    </div>
-    <div class="info-box">
-      <div class="lbl">Member Status</div>
-      <div class="val">{% if is_vip %}👑 VIP{% else %}Guest{% endif %}</div>
-    </div>
+  <div class="row">
+    <div class="box"><div class="lbl">Assigned Slot</div><div class="val slot" id="slot-label">P{{ slot_id }}</div></div>
+    <div class="box"><div class="lbl">Entry Time</div><div class="val" id="entry-time">--</div></div>
   </div>
 
-  {% if is_ev %}
-  <div class="ev-notice" id="ev-notice" style="display:block">
-    ⚡ EV Charging slot — ₹50 surcharge applies at exit
+  <div class="notice" id="voice-state">
+    Voice Assistant: say "Yes" to upgrade to EV slot for fast charging, or "No" to keep current slot.
   </div>
-  {% endif %}
 
-  <div class="notice">
-    <strong>How to exit:</strong> Scan the QR on slot P{{ slot_id }} again.
-    Your fee is calculated automatically and debited via FASTag.
+  <div class="ar-panel" id="ar-panel">
+    <div class="ar-head">
+      <div class="ar-title">AR Navigation Mode</div>
+      <span class="pill" id="geo-pill">Within 500m</span>
+    </div>
+    <div class="ar-view">
+      <video id="ar-video" playsinline muted></video>
+      <canvas id="ar-overlay"></canvas>
+    </div>
+    <div class="ar-controls">
+      <button class="btn btn-primary" id="start-ar">Start AR Camera</button>
+      <button class="btn btn-secondary" id="voice-btn">Ask Parking Assistant</button>
+    </div>
+    <div class="status" id="ar-status">Move phone to align the green arrow with your slot direction.</div>
   </div>
 
   <div class="map-wrap">
-    <div class="map-title">Smart Slot Navigation (V2X Geotag)</div>
+    <div style="font-size:.73rem;color:var(--muted);margin:2px 0 8px">Map Navigation Fallback</div>
     <div id="slot-map"></div>
   </div>
 
-  <button class="voice-btn" onclick="speak()">🔊 Replay Voice Announcement</button>
-  <a href="/scan/exit/{{ slot_id }}" class="exit-link">🏁 Exit Now (Process Payment)</a>
-  <a href="/" class="home-link">← Back to Dashboard</a>
+  <div class="foot">
+    <a class="link exit" id="exit-link" href="/scan/exit/{{ slot_id }}">Exit and Process Payment</a>
+    <a class="link home" href="/">Dashboard</a>
+  </div>
 </div>
 
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 <script>
-  // ── Entry time display ───────────────────────────────────────────────────
-  const raw = "{{ entry_time }}";
-  document.getElementById('entry-time').textContent =
-    new Date(raw).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+  const vehicleId = "{{ vehicle }}";
+  const initialSlotId = "{{ slot_id }}";
+  let currentSlotId = initialSlotId;
+  const slotLat = Number("{{ slot_lat if slot_lat is not none else 12.82304 }}");
+  const slotLng = Number("{{ slot_lng if slot_lng is not none else 80.04445 }}");
 
-  // ── Web Speech API — Voice Announcement ──────────────────────────────────
-  function speak() {
+  const entryRaw = "{{ entry_time }}";
+  document.getElementById("entry-time").textContent = new Date(entryRaw).toLocaleTimeString([], {hour:"2-digit", minute:"2-digit"});
+
+  const map = L.map("slot-map", {zoomControl:true}).setView([slotLat, slotLng], 19);
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    maxZoom: 22,
+    attribution: "&copy; OpenStreetMap contributors"
+  }).addTo(map);
+  L.marker([slotLat, slotLng]).addTo(map).bindPopup(`Assigned Slot P${currentSlotId}`).openPopup();
+  L.circle([slotLat, slotLng], {radius:25,color:"#00e676",fillColor:"#00e676",fillOpacity:.16,weight:2}).addTo(map);
+
+  const arPanel = document.getElementById("ar-panel");
+  const arVideo = document.getElementById("ar-video");
+  const arCanvas = document.getElementById("ar-overlay");
+  const arCtx = arCanvas.getContext("2d");
+  const arStatus = document.getElementById("ar-status");
+  const voiceState = document.getElementById("voice-state");
+  const voiceBtn = document.getElementById("voice-btn");
+
+  let latestHeading = 0;
+  let latestBearing = 0;
+
+  function toRad(v){ return v * Math.PI / 180; }
+  function toDeg(v){ return v * 180 / Math.PI; }
+
+  function distanceMeters(lat1, lon1, lat2, lon2) {
+    const R = 6371000;
+    const dLat = toRad(lat2-lat1);
+    const dLon = toRad(lon2-lon1);
+    const a = Math.sin(dLat/2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon/2) ** 2;
+    return 2 * R * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  }
+
+  function bearingDegrees(lat1, lon1, lat2, lon2) {
+    const y = Math.sin(toRad(lon2-lon1)) * Math.cos(toRad(lat2));
+    const x = Math.cos(toRad(lat1)) * Math.sin(toRad(lat2)) - Math.sin(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.cos(toRad(lon2-lon1));
+    return (toDeg(Math.atan2(y, x)) + 360) % 360;
+  }
+
+  function drawArrow() {
+    const w = arCanvas.width = arCanvas.clientWidth;
+    const h = arCanvas.height = arCanvas.clientHeight;
+    arCtx.clearRect(0, 0, w, h);
+
+    const delta = (((latestBearing - latestHeading) + 540) % 360) - 180;
+    const clamped = Math.max(-70, Math.min(70, delta));
+
+    arCtx.save();
+    arCtx.translate(w / 2 + (clamped / 70) * (w * 0.28), h * 0.56);
+    arCtx.rotate((delta * Math.PI) / 180);
+
+    arCtx.beginPath();
+    arCtx.moveTo(0, -62);
+    arCtx.lineTo(22, -18);
+    arCtx.lineTo(9, -18);
+    arCtx.lineTo(9, 55);
+    arCtx.lineTo(-9, 55);
+    arCtx.lineTo(-9, -18);
+    arCtx.lineTo(-22, -18);
+    arCtx.closePath();
+
+    const grad = arCtx.createLinearGradient(0, -62, 0, 55);
+    grad.addColorStop(0, "rgba(170,255,190,.98)");
+    grad.addColorStop(1, "rgba(0,230,118,.98)");
+    arCtx.fillStyle = grad;
+    arCtx.shadowColor = "rgba(0,230,118,.6)";
+    arCtx.shadowBlur = 24;
+    arCtx.fill();
+    arCtx.restore();
+
+    arCtx.fillStyle = "rgba(0,0,0,.55)";
+    arCtx.fillRect(8, 8, 160, 44);
+    arCtx.fillStyle = "#a9ffd0";
+    arCtx.font = "600 12px Segoe UI";
+    arCtx.fillText(`Slot P${currentSlotId}`, 16, 24);
+    arCtx.fillText(`Direction ${Math.round(latestBearing)} deg`, 16, 40);
+  }
+
+  function speak(text) {
     if (!window.speechSynthesis) return;
     window.speechSynthesis.cancel();
-    const msg = new SpeechSynthesisUtterance();
-    {% if is_vip %}
-    msg.text = `Welcome V.I.P. member. Your vehicle has been registered at slot P {{ slot_id }}. ` +
-               `FASTag I.D. {{ vehicle }}. You receive a 50 percent discount. Enjoy your parking.`;
-    {% elif is_ev %}
-    msg.text = `Entry successful. Slot P {{ slot_id }} assigned. FASTag {{ vehicle }}. ` +
-               `This is an E.V. charging slot. A surcharge of 50 rupees applies at exit.`;
-    {% else %}
-    msg.text = `Entry successful. Slot P {{ slot_id }} assigned. FASTag I.D. {{ vehicle }}. ` +
-               `Scan the Q.R. code again when you leave to process payment.`;
-    {% endif %}
-    msg.rate   = 0.92;
-    msg.pitch  = 1.0;
+    const msg = new SpeechSynthesisUtterance(text);
+    msg.rate = 0.94;
+    msg.pitch = 1.0;
     msg.volume = 1.0;
     window.speechSynthesis.speak(msg);
   }
 
-  // Auto-speak on page load
-  window.addEventListener('load', () => setTimeout(speak, 600));
-</script>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-<script>
-  const slotLat = Number("{{ slot_lat if slot_lat is not none else 12.82304 }}");
-  const slotLng = Number("{{ slot_lng if slot_lng is not none else 80.04445 }}");
+  async function upgradeToEv(accept) {
+    const res = await fetch("/api/voice/ev-upgrade", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({slot_id: currentSlotId, vehicle_id: vehicleId, accept})
+    });
+    return await res.json();
+  }
 
-  const map = L.map('slot-map', {zoomControl:true}).setView([slotLat, slotLng], 19);
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    maxZoom: 22,
-    attribution: '&copy; OpenStreetMap contributors'
-  }).addTo(map);
+  function setSlot(newSlot) {
+    currentSlotId = String(newSlot);
+    document.getElementById("slot-label").textContent = `P${currentSlotId}`;
+    document.getElementById("exit-link").setAttribute("href", `/scan/exit/${currentSlotId}`);
+    document.getElementById("ev-badge").style.display = ["9","10"].includes(currentSlotId) ? "inline-flex" : "none";
+  }
 
-  const marker = L.marker([slotLat, slotLng]).addTo(map);
-  marker.bindPopup(`Assigned Slot P{{ slot_id }}<br>Lat: ${slotLat.toFixed(5)}, Lon: ${slotLng.toFixed(5)}`).openPopup();
+  function listenOnce() {
+    const Rec = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!Rec) {
+      voiceState.textContent = "Speech recognition not available in this browser.";
+      return;
+    }
 
-  L.circle([slotLat, slotLng], {
-    radius: 25,
-    color: '#00e676',
-    fillColor: '#00e676',
-    fillOpacity: 0.16,
-    weight: 2
-  }).addTo(map);
+    const rec = new Rec();
+    rec.lang = "en-US";
+    rec.maxAlternatives = 1;
+    rec.interimResults = false;
+
+    voiceState.textContent = "Listening... say Yes or No.";
+
+    rec.onresult = async (e) => {
+      const heard = (e.results[0][0].transcript || "").toLowerCase();
+      const accepted = /yes|upgrade|ev|sure|okay/.test(heard);
+
+      try {
+        const out = await upgradeToEv(accepted);
+        if (out.success && out.upgraded) {
+          setSlot(out.slot_id);
+          voiceState.textContent = out.message;
+          speak(`Done. Upgraded to EV slot P ${out.slot_id}.`);
+        } else if (out.success) {
+          voiceState.textContent = out.message || "Keeping current slot.";
+          speak("Okay. Keeping your current slot.");
+        } else {
+          voiceState.textContent = out.message || "Upgrade request failed.";
+          speak("Could not process upgrade right now.");
+        }
+      } catch (_) {
+        voiceState.textContent = "Network error while processing assistant request.";
+      }
+    };
+
+    rec.onerror = () => { voiceState.textContent = "Could not recognize speech. Try again."; };
+    rec.start();
+  }
+
+  async function startArCamera() {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({video: {facingMode: {ideal: "environment"}}, audio: false});
+      arVideo.srcObject = stream;
+      arVideo.style.display = "block";
+      await arVideo.play();
+      arStatus.textContent = "AR active. Turn your phone until the arrow points forward.";
+      drawArrow();
+    } catch (_) {
+      arStatus.textContent = "Camera permission denied. Using map guidance instead.";
+    }
+  }
+
+  function checkGeofenceAndBearing() {
+    if (!navigator.geolocation) return;
+
+    navigator.geolocation.watchPosition((pos) => {
+      const lat = pos.coords.latitude;
+      const lon = pos.coords.longitude;
+      const d = distanceMeters(lat, lon, slotLat, slotLng);
+      latestBearing = bearingDegrees(lat, lon, slotLat, slotLng);
+
+      if (d <= 500) {
+        arPanel.classList.add("show");
+        document.getElementById("geo-pill").textContent = `Within ${Math.round(d)}m`;
+      } else {
+        arPanel.classList.remove("show");
+      }
+
+      drawArrow();
+    }, () => {}, {enableHighAccuracy:true, maximumAge:3000, timeout:10000});
+  }
+
+  if (window.DeviceOrientationEvent) {
+    window.addEventListener("deviceorientation", (ev) => {
+      if (typeof ev.alpha === "number") {
+        latestHeading = (360 - ev.alpha) % 360;
+        drawArrow();
+      }
+    }, true);
+  }
+
+  document.getElementById("start-ar").addEventListener("click", startArCamera);
+  voiceBtn.addEventListener("click", () => {
+    speak("Welcome. Would you like to upgrade to an EV slot for faster charging? Please say yes or no.");
+    setTimeout(listenOnce, 1700);
+  });
+
+  window.addEventListener("load", () => {
+    checkGeofenceAndBearing();
+    setTimeout(() => {
+      speak(`Welcome. Slot P ${currentSlotId} is assigned. Open assistant for EV upgrade by voice.`);
+    }, 500);
+  });
 </script>
 </body>
 </html>

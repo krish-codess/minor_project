@@ -1,11 +1,11 @@
 {
-  "round": 2,
+  "round": 15,
   "global_weights": {
-    "char_confidence_boost": 0.535167,
-    "ocr_threshold": 0.391733,
-    "hyphen_bonus": 0.054068,
-    "digit_bonus": 0.07274,
-    "alpha_bonus": 0.05126
+    "char_confidence_boost": 0.714542,
+    "ocr_threshold": 0.416733,
+    "hyphen_bonus": 0.066696,
+    "digit_bonus": 0.22319,
+    "alpha_bonus": 0.05681
   },
   "clients": {
     "gate-client-A": {
@@ -17,6 +17,11 @@
       "last_round": 2,
       "last_seen": "2026-04-15T23:47:33.617542",
       "updates": 1
+    },
+    "gate-krish": {
+      "last_round": 15,
+      "last_seen": "2026-04-28T13:09:49.604480",
+      "updates": 13
     }
   },
   "history": [
@@ -31,7 +36,85 @@
       "num_clients": 1,
       "total_samples": 75,
       "timestamp": "2026-04-15T23:47:33.617542"
+    },
+    {
+      "round": 3,
+      "num_clients": 1,
+      "total_samples": 80,
+      "timestamp": "2026-04-16T11:00:51.633505"
+    },
+    {
+      "round": 4,
+      "num_clients": 1,
+      "total_samples": 80,
+      "timestamp": "2026-04-16T11:05:31.345808"
+    },
+    {
+      "round": 5,
+      "num_clients": 1,
+      "total_samples": 80,
+      "timestamp": "2026-04-16T11:05:33.625984"
+    },
+    {
+      "round": 6,
+      "num_clients": 1,
+      "total_samples": 80,
+      "timestamp": "2026-04-16T11:05:38.837874"
+    },
+    {
+      "round": 7,
+      "num_clients": 1,
+      "total_samples": 80,
+      "timestamp": "2026-04-16T11:05:41.707905"
+    },
+    {
+      "round": 8,
+      "num_clients": 1,
+      "total_samples": 80,
+      "timestamp": "2026-04-16T13:05:17.735909"
+    },
+    {
+      "round": 9,
+      "num_clients": 1,
+      "total_samples": 80,
+      "timestamp": "2026-04-16T13:05:23.723521"
+    },
+    {
+      "round": 10,
+      "num_clients": 1,
+      "total_samples": 80,
+      "timestamp": "2026-04-28T12:32:07.038822"
+    },
+    {
+      "round": 11,
+      "num_clients": 1,
+      "total_samples": 80,
+      "timestamp": "2026-04-28T12:32:10.007667"
+    },
+    {
+      "round": 12,
+      "num_clients": 1,
+      "total_samples": 80,
+      "timestamp": "2026-04-28T12:43:08.143790"
+    },
+    {
+      "round": 13,
+      "num_clients": 1,
+      "total_samples": 80,
+      "timestamp": "2026-04-28T12:43:11.540536"
+    },
+    {
+      "round": 14,
+      "num_clients": 1,
+      "total_samples": 80,
+      "timestamp": "2026-04-28T12:56:26.106548"
+    },
+    {
+      "round": 15,
+      "num_clients": 1,
+      "total_samples": 80,
+      "timestamp": "2026-04-28T13:09:49.604480"
     }
   ],
-  "updated_at": "2026-04-15T23:47:33.617542"
+  "updated_at": "2026-04-28T13:09:49.604480"
 }

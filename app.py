@@ -15,11 +15,11 @@ v3.0 Additions over v2.1:
 from flask import Flask, render_template, request, jsonify, send_file
 from datetime import datetime, timedelta
 from io import BytesIO
-import sqlite3, threading, random, string, os, time, socket
+import sqlite3, threading, random, string, os, time, socket, json
 from blockchain_ledger import mine_transaction, smart_contract_compute_fee
 
 from timediff import (
-    compute_fee, is_vip_vehicle, get_effective_rate,
+    compute_fee, compute_green_credits, is_vip_vehicle, get_effective_rate,
     RATE_PER_HOUR, DYNAMIC_RATE, VIP_LIST, EV_SLOTS, EV_SURCHARGE
 )
 
@@ -179,6 +179,24 @@ def init_db():
             confidence    REAL,
             created_at    TEXT NOT NULL DEFAULT (datetime('now','localtime'))
         );
+
+        CREATE TABLE IF NOT EXISTS eco_leaderboard (
+            vehicle_id    TEXT PRIMARY KEY,
+            total_points  INTEGER NOT NULL DEFAULT 0,
+            badges        TEXT,
+            last_updated  TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+        );
+
+        CREATE TABLE IF NOT EXISTS eco_reward_log (
+            id             INTEGER PRIMARY KEY AUTOINCREMENT,
+            transaction_id INTEGER,
+            vehicle_id     TEXT NOT NULL,
+            points         INTEGER NOT NULL,
+            badges         TEXT,
+            reasons        TEXT,
+            created_at     TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+            FOREIGN KEY(transaction_id) REFERENCES transactions(id)
+        );
         """)
 
         cols = [r["name"] for r in conn.execute("PRAGMA table_info(slots)").fetchall()]
@@ -224,6 +242,15 @@ def init_db():
                 "INSERT OR IGNORE INTO blacklist(vehicle_id, reason) VALUES(?,?)",
                 (vid, reason)
             )
+
+        # Demo gamification baseline for presentation.
+        conn.execute(
+            """
+            INSERT OR IGNORE INTO eco_leaderboard(vehicle_id, total_points, badges)
+            VALUES (?, ?, ?)
+            """,
+            ("SRM-VIP-01", 180, "Eco-Driver,Prompt Parker,EV Champion")
+        )
 
         conn.commit()
 
@@ -295,6 +322,92 @@ def log_alert(conn, alert_type: str, slot_id: str = None,
 
 def generate_fasttag_id() -> str:
     return "FT-" + "".join(random.choices(string.digits + "ABCDEF", k=4))
+
+
+def _merge_badges(existing_badges: str, new_badges) -> str:
+    old = [b.strip() for b in (existing_badges or "").split(",") if b.strip()]
+    merged = sorted(set(old + list(new_badges)))
+    return ",".join(merged)
+
+
+def update_green_credits(conn, vehicle_id: str, transaction_id: int, reward: dict):
+    badges_csv = ",".join(reward.get("badges", []))
+    reasons_json = json.dumps(reward.get("reasons", []), ensure_ascii=True)
+
+    conn.execute(
+        """
+        INSERT INTO eco_reward_log(transaction_id, vehicle_id, points, badges, reasons)
+        VALUES (?, ?, ?, ?, ?)
+        """,
+        (transaction_id, vehicle_id, int(reward.get("points", 0)), badges_csv, reasons_json),
+    )
+
+    row = conn.execute(
+        "SELECT total_points, badges FROM eco_leaderboard WHERE vehicle_id=?",
+        (vehicle_id,),
+    ).fetchone()
+
+    if row:
+        total = int(row["total_points"]) + int(reward.get("points", 0))
+        merged_badges = _merge_badges(row["badges"], reward.get("badges", []))
+        conn.execute(
+            """
+            UPDATE eco_leaderboard
+            SET total_points=?, badges=?, last_updated=datetime('now','localtime')
+            WHERE vehicle_id=?
+            """,
+            (total, merged_badges, vehicle_id),
+        )
+    else:
+        conn.execute(
+            """
+            INSERT INTO eco_leaderboard(vehicle_id, total_points, badges)
+            VALUES (?, ?, ?)
+            """,
+            (vehicle_id, int(reward.get("points", 0)), badges_csv),
+        )
+
+
+def build_slot_reconfiguration(conn, preferred_slot: str = "1"):
+    """Builds a virtual movement plan and chooses a free target slot for VIP override."""
+    pref = str(preferred_slot)
+    occupied_pref = conn.execute(
+        "SELECT is_occupied FROM slots WHERE id=?",
+        (pref,),
+    ).fetchone()
+    if not occupied_pref or not bool(occupied_pref["is_occupied"]):
+        return None
+
+    free_slot = conn.execute(
+        """
+        SELECT id FROM slots
+        WHERE is_occupied=0
+        ORDER BY CASE WHEN id IN ('9','10') THEN 0 ELSE 1 END,
+                 ABS(CAST(id AS INTEGER) - CAST(? AS INTEGER))
+        LIMIT 1
+        """,
+        (pref,),
+    ).fetchone()
+    if not free_slot:
+        return None
+
+    free_id = str(free_slot["id"])
+    p = int(pref)
+    f = int(free_id)
+    movement_plan = []
+    step = 1 if f > p else -1
+    for idx in range(p, f, step):
+        movement_plan.append({
+            "from": str(idx),
+            "to": str(idx + step),
+            "axis": "horizontal" if ((idx - 1) // 5) == ((idx + step - 1) // 5) else "vertical",
+        })
+
+    return {
+        "preferred_slot": pref,
+        "assigned_slot": free_id,
+        "movement_plan": movement_plan,
+    }
 
 
 # ── Background: booking cleaner ───────────────────────────────────────────────
@@ -504,9 +617,22 @@ def api_entry():
                 ).fetchone()
                 if not slot:
                     return jsonify({"success": False, "message": "Slot not found"}), 404
+
+                vip = is_vip_db(vehicle, conn)
+                reconfig = None
                 if slot["is_occupied"]:
-                    return jsonify({"success": False,
-                                    "message": "Slot already occupied"}), 409
+                    if vip and slot_id == "1":
+                        reconfig = build_slot_reconfiguration(conn, preferred_slot="1")
+                        if not reconfig:
+                            return jsonify({"success": False,
+                                            "message": "No slot available for VIP reconfiguration"}), 409
+                        slot_id = reconfig["assigned_slot"]
+                        slot = conn.execute(
+                            "SELECT * FROM slots WHERE id=?", (slot_id,)
+                        ).fetchone()
+                    else:
+                        return jsonify({"success": False,
+                                        "message": "Slot already occupied"}), 409
 
                 existing = conn.execute(
                     "SELECT slot_id FROM active_sessions WHERE vehicle_id=?",
@@ -516,7 +642,6 @@ def api_entry():
                     return jsonify({"success": False,
                                     "message": f"Vehicle parked in slot {existing['slot_id']}"}), 409
 
-                vip   = is_vip_db(vehicle, conn)
                 is_ev = slot_id in EV_SLOTS
                 now   = datetime.now().isoformat()
 
@@ -539,7 +664,12 @@ def api_entry():
                         (vehicle_id, slot_id, entry_time, is_vip, is_ev)
                     VALUES (?,?,?,?,?)
                 """, (vehicle, slot_id, now, int(vip), int(is_ev)))
-                log_change(conn, "entry", slot_id)
+                log_change(
+                    conn,
+                    "entry",
+                    slot_id,
+                    json.dumps({"reconfigured": bool(reconfig), "vehicle": vehicle}),
+                )
                 conn.commit()
 
         return jsonify({
@@ -550,6 +680,9 @@ def api_entry():
             "is_vip":         vip,
             "is_ev":          is_ev,
             "plate_verified": plate_verified,
+            "reconfigured":   bool(reconfig),
+            "movement_plan":  reconfig["movement_plan"] if reconfig else [],
+            "preferred_slot": reconfig["preferred_slot"] if reconfig else slot_id,
         })
 
     except sqlite3.OperationalError as e:
@@ -614,6 +747,16 @@ def api_exit():
                     WHERE vehicle_id=? AND slot_id=? AND exit_time=?
                 """, (slot["current_vehicle"], slot_id, exit_time)).fetchone()
 
+                reward = compute_green_credits(
+                    slot["entry_time"],
+                    exit_time,
+                    slot_id=slot_id,
+                    effective_rate=rate,
+                    is_surge=is_surge,
+                )
+                if txn_id:
+                    update_green_credits(conn, slot["current_vehicle"], txn_id["id"], reward)
+
                 mined_block = None
                 if txn_id:
                     tx_payload = {
@@ -674,6 +817,7 @@ def api_exit():
             "receipt_url":  receipt_url,
             "block_hash":   mined_block.get("hash") if mined_block else None,
             "block_index":  mined_block.get("index") if mined_block else None,
+            "green_credits": reward,
             **billing,
         }})
 
@@ -1015,6 +1159,204 @@ def api_blacklist_add():
         return jsonify({"success": False, "message": str(e)}), 500
 
 
+@app.route("/api/eco/leaderboard")
+def api_eco_leaderboard():
+    try:
+        limit = min(int(request.args.get("limit", 8)), 20)
+        with get_db() as conn:
+            rows = conn.execute(
+                """
+                SELECT vehicle_id, total_points, badges, last_updated
+                FROM eco_leaderboard
+                ORDER BY total_points DESC, last_updated DESC
+                LIMIT ?
+                """,
+                (limit,),
+            ).fetchall()
+        result = []
+        for r in rows:
+            item = dict(r)
+            item["badges"] = [b.strip() for b in (item.get("badges") or "").split(",") if b.strip()]
+            result.append(item)
+        return jsonify({"leaders": result})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/eco/vehicle/<vehicle_id>")
+def api_eco_vehicle(vehicle_id):
+    try:
+        vid = str(vehicle_id).strip().upper()
+        with get_db() as conn:
+            board = conn.execute(
+                "SELECT total_points, badges, last_updated FROM eco_leaderboard WHERE vehicle_id=?",
+                (vid,),
+            ).fetchone()
+            recent = conn.execute(
+                """
+                SELECT points, badges, reasons, created_at
+                FROM eco_reward_log
+                WHERE vehicle_id=?
+                ORDER BY id DESC
+                LIMIT 5
+                """,
+                (vid,),
+            ).fetchall()
+        return jsonify({
+            "vehicle_id": vid,
+            "total_points": int(board["total_points"]) if board else 0,
+            "badges": [b.strip() for b in ((board["badges"] if board else "") or "").split(",") if b.strip()],
+            "recent": [dict(r) for r in recent],
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/voice/ev-upgrade", methods=["POST"])
+def api_voice_ev_upgrade():
+    try:
+        data = request.json or {}
+        slot_id = str(data.get("slot_id", "")).strip()
+        vehicle = str(data.get("vehicle_id", "")).strip().upper()
+        accept = bool(data.get("accept", False))
+
+        if not slot_id or not vehicle:
+            return jsonify({"success": False, "message": "slot_id and vehicle_id required"}), 400
+        if not accept:
+            return jsonify({"success": True, "upgraded": False, "message": "Upgrade declined"})
+
+        with _db_lock:
+            with get_db() as conn:
+                session = conn.execute(
+                    "SELECT slot_id, entry_time, is_vip FROM active_sessions WHERE vehicle_id=?",
+                    (vehicle,),
+                ).fetchone()
+                if not session:
+                    return jsonify({"success": False, "message": "Active session not found"}), 404
+
+                current_slot = str(session["slot_id"])
+                if current_slot in ("9", "10"):
+                    return jsonify({
+                        "success": True,
+                        "upgraded": False,
+                        "slot_id": current_slot,
+                        "message": "Already in EV-ready slot",
+                    })
+
+                target = conn.execute(
+                    """
+                    SELECT id FROM slots
+                    WHERE id IN ('9', '10') AND is_occupied=0
+                    ORDER BY CAST(id AS INTEGER)
+                    LIMIT 1
+                    """
+                ).fetchone()
+                if not target:
+                    return jsonify({"success": False, "message": "No EV slot currently available"}), 409
+
+                target_slot = str(target["id"])
+                conn.execute(
+                    """
+                    UPDATE slots
+                    SET is_occupied=0, current_vehicle=NULL, entry_time=NULL, is_vip=0, is_ev=0
+                    WHERE id=?
+                    """,
+                    (current_slot,),
+                )
+                conn.execute(
+                    """
+                    UPDATE slots
+                    SET is_occupied=1, current_vehicle=?, entry_time=?, is_vip=?, is_ev=1,
+                        booked_by=NULL, booked_at=NULL
+                    WHERE id=?
+                    """,
+                    (vehicle, session["entry_time"], int(session["is_vip"]), target_slot),
+                )
+                conn.execute(
+                    "UPDATE active_sessions SET slot_id=? WHERE vehicle_id=?",
+                    (target_slot, vehicle),
+                )
+                conn.execute(
+                    """
+                    UPDATE transactions
+                    SET slot_id=?, is_ev=1
+                    WHERE vehicle_id=? AND exit_time IS NULL
+                    """,
+                    (target_slot, vehicle),
+                )
+                log_change(
+                    conn,
+                    "ev_upgrade",
+                    target_slot,
+                    json.dumps({"vehicle": vehicle, "from": current_slot, "to": target_slot}),
+                )
+                conn.commit()
+
+        return jsonify({
+            "success": True,
+            "upgraded": True,
+            "slot_id": target_slot,
+            "message": f"EV upgrade successful. Moved to slot P{target_slot}",
+        })
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
+@app.route("/api/reconfigure/demo", methods=["POST"])
+def api_reconfigure_demo():
+    try:
+        data = request.json or {}
+        vehicle = str(data.get("vehicle_id", "SRM-VIP-01")).strip().upper()
+        preferred_slot = str(data.get("preferred_slot", "1")).strip() or "1"
+
+        with _db_lock:
+            with get_db() as conn:
+                if not is_vip_db(vehicle, conn):
+                    return jsonify({"success": False, "message": "VIP vehicle required for reconfiguration demo"}), 403
+                plan = build_slot_reconfiguration(conn, preferred_slot)
+                if not plan:
+                    return jsonify({"success": False, "message": "No movement path available"}), 409
+
+                log_change(
+                    conn,
+                    "reconfigure",
+                    plan["assigned_slot"],
+                    json.dumps({"vehicle": vehicle, "plan": plan["movement_plan"]}),
+                )
+                conn.commit()
+
+        return jsonify({"success": True, "vehicle_id": vehicle, **plan})
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
+@app.route("/api/security/demo-tailgate", methods=["POST"])
+def api_security_demo_tailgate():
+    try:
+        data = request.json or {}
+        slot_id = str(data.get("slot_id", "3")).strip() or "3"
+        with _db_lock:
+            with get_db() as conn:
+                conn.execute(
+                    """
+                    INSERT INTO heartbeat_log(slot_id, camera_state, db_state, mismatch)
+                    VALUES (?, 'occupied', 'free', 1)
+                    """,
+                    (slot_id,),
+                )
+                log_alert(
+                    conn,
+                    "UNAUTHORIZED_ACCESS",
+                    slot_id,
+                    None,
+                    "Manual demo trigger: simulated tailgating mismatch",
+                )
+                conn.commit()
+        return jsonify({"success": True, "slot_id": slot_id})
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
 # ══════════════════════════════════════════════════════════════════════════════
 # API — HEARTBEAT MONITOR  (v3.0)
 # ══════════════════════════════════════════════════════════════════════════════
@@ -1070,6 +1412,190 @@ def camera_heartbeat():
         return jsonify({"error": str(e)}), 500
 
 
+@app.route("/api/camera/stream")
+def camera_stream():
+    """MJPEG stream of the live gate camera (fed by gate_monitor thread)."""
+    try:
+        import camera_buffer
+    except ImportError:
+        return "camera_buffer module not found", 503
+
+    from flask import Response
+
+    def generate():
+        while True:
+            frame = camera_buffer.get_frame()
+            if frame:
+                yield (
+                    b"--frame\r\n"
+                    b"Content-Type: image/jpeg\r\n\r\n" + frame + b"\r\n"
+                )
+            time.sleep(0.05)   # ~20 fps to browser
+
+    return Response(
+        generate(),
+        mimetype="multipart/x-mixed-replace; boundary=frame",
+    )
+
+
+@app.route("/api/camera/snapshot")
+def camera_snapshot():
+    """Single latest JPEG frame — used as fallback when MJPEG isn't supported."""
+    try:
+        import camera_buffer
+        frame = camera_buffer.get_frame()
+    except ImportError:
+        frame = None
+    if not frame:
+        from flask import Response
+        return Response(status=204)
+    from flask import Response
+    return Response(frame, mimetype="image/jpeg")
+
+
+@app.route("/api/qr-scan", methods=["POST"])
+def api_qr_scan():
+    """
+    Process a QR code detected by the browser or any client.
+    Body: {qr: <raw QR string>}
+    Mirrors gate_monitor logic: auto entry or exit.
+    """
+    try:
+        data = request.json or {}
+        raw  = str(data.get("qr", "")).strip()
+        if not raw:
+            return jsonify({"success": False, "message": "qr field required"}), 400
+
+        # Extract FASTag / vehicle ID from QR
+        import gate_monitor as _gm
+        fasttag_id = _gm.extract_fasttag(raw)
+        if not fasttag_id:
+            return jsonify({"success": False, "message": "Could not parse QR data"}), 400
+
+        # Determine if exit (vehicle already parked) or entry
+        with get_db() as conn:
+            active = conn.execute(
+                "SELECT slot_id FROM active_sessions WHERE vehicle_id=?",
+                (fasttag_id,),
+            ).fetchone()
+            if not active:
+                # Also check slots table
+                active_slot = conn.execute(
+                    "SELECT id AS slot_id FROM slots WHERE current_vehicle=? AND is_occupied=1",
+                    (fasttag_id,),
+                ).fetchone()
+            else:
+                active_slot = active
+
+        if active_slot:
+            # ── EXIT flow ──────────────────────────────────────────────────────
+            slot_id = str(active_slot["slot_id"])
+            with _db_lock:
+                with get_db() as conn:
+                    slot = conn.execute(
+                        "SELECT * FROM slots WHERE id=?", (slot_id,)
+                    ).fetchone()
+                    if not slot or not slot["is_occupied"]:
+                        return jsonify({"success": False, "message": "Slot not occupied"}), 409
+                    entry_time = slot["entry_time"]
+                    is_vip     = bool(slot["is_vip"])
+                    is_ev      = slot_id in EV_SLOTS
+                    occ  = get_occupied_count(conn)
+                    rate = get_effective_rate(occ, TOTAL_SLOTS)
+                    is_surge = rate > RATE_PER_HOUR
+                    billing  = compute_fee(
+                        entry_time, is_vip=is_vip,
+                        effective_rate=rate, is_surge=is_surge,
+                        slot_id=slot_id,
+                    )
+                    fee      = billing["fee"]
+                    dur_str  = billing["duration_str"]
+                    dur_min  = billing["duration_min"]
+                    now = datetime.now().isoformat()
+                    conn.execute("""
+                        UPDATE transactions
+                        SET exit_time=?, total_fee=?, duration_min=?,
+                            duration_str=?, is_surge=?, rate_used=?
+                        WHERE vehicle_id=? AND exit_time IS NULL
+                    """, (now, fee, dur_min, dur_str, int(is_surge), rate, fasttag_id))
+                    conn.execute(
+                        "DELETE FROM active_sessions WHERE vehicle_id=?",
+                        (fasttag_id,),
+                    )
+                    conn.execute("""
+                        UPDATE slots
+                        SET is_occupied=0, current_vehicle=NULL, entry_time=NULL,
+                            is_vip=0, booked_by=NULL, booked_at=NULL
+                        WHERE id=?
+                    """, (slot_id,))
+                    log_change(conn, "exit", slot_id)
+                    conn.commit()
+            return jsonify({
+                "success":      True,
+                "action":       "exit",
+                "vehicle_id":   fasttag_id,
+                "slot_id":      slot_id,
+                "fee":          fee,
+                "duration_str": dur_str,
+                "is_vip":       is_vip,
+                "is_ev":        is_ev,
+                "message":      f"Exit processed. ₹{fee} due for {dur_str}.",
+            })
+
+        else:
+            # ── ENTRY flow ─────────────────────────────────────────────────────
+            is_ev   = _gm.is_ev_fasttag(fasttag_id)
+            slot_id = _gm.pick_slot(is_ev, "http://localhost:5000")
+            if not slot_id:
+                return jsonify({"success": False, "message": "No free slots available"}), 409
+
+            with _db_lock:
+                with get_db() as conn:
+                    if is_blacklisted(fasttag_id, conn):
+                        log_alert(conn, "BLACKLIST_ENTRY", slot_id, fasttag_id,
+                                  "Blacklisted vehicle QR scan")
+                        conn.commit()
+                        return jsonify({
+                            "success": False,
+                            "message": "Vehicle is blacklisted.",
+                            "alert": "BLACKLIST",
+                        }), 403
+                    vip = is_vip_db(fasttag_id, conn)
+                    is_ev = slot_id in EV_SLOTS
+                    now   = datetime.now().isoformat()
+                    conn.execute("""
+                        UPDATE slots
+                        SET is_occupied=1, current_vehicle=?, entry_time=?,
+                            is_vip=?, is_ev=?, booked_by=NULL, booked_at=NULL
+                        WHERE id=?
+                    """, (fasttag_id, now, int(vip), int(is_ev), slot_id))
+                    conn.execute("""
+                        INSERT OR REPLACE INTO active_sessions
+                            (vehicle_id, slot_id, entry_time, is_vip)
+                        VALUES (?,?,?,?)
+                    """, (fasttag_id, slot_id, now, int(vip)))
+                    conn.execute("""
+                        INSERT INTO transactions
+                            (vehicle_id, slot_id, entry_time, is_vip, is_ev)
+                        VALUES (?,?,?,?,?)
+                    """, (fasttag_id, slot_id, now, int(vip), int(is_ev)))
+                    log_change(conn, "entry", slot_id,
+                               json.dumps({"vehicle": fasttag_id}))
+                    conn.commit()
+            return jsonify({
+                "success":    True,
+                "action":     "entry",
+                "vehicle_id": fasttag_id,
+                "slot_id":    slot_id,
+                "is_vip":     vip,
+                "is_ev":      is_ev,
+                "message":    f"Entry logged. Slot P{slot_id} → {fasttag_id}.",
+            })
+
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
 @app.route("/api/camera/update", methods=["POST"])
 def camera_update():
     try:
@@ -1080,10 +1606,29 @@ def camera_update():
             return jsonify({"success": False, "message": "slot_id required"}), 400
         with _db_lock:
             with get_db() as conn:
-                if not conn.execute(
-                    "SELECT id FROM slots WHERE id=?", (slot_id,)
-                ).fetchone():
+                db_slot = conn.execute(
+                    "SELECT id, is_occupied FROM slots WHERE id=?", (slot_id,)
+                ).fetchone()
+                if not db_slot:
                     return jsonify({"success": False, "message": "Slot not found"}), 404
+                db_occupied = bool(db_slot["is_occupied"])
+
+                if occupied and not db_occupied:
+                    conn.execute(
+                        """
+                        INSERT INTO heartbeat_log(slot_id, camera_state, db_state, mismatch)
+                        VALUES (?, 'occupied', 'free', 1)
+                        """,
+                        (slot_id,),
+                    )
+                    log_alert(
+                        conn,
+                        "UNAUTHORIZED_ACCESS",
+                        slot_id,
+                        None,
+                        "Camera update mismatch: occupied seen without active session",
+                    )
+
                 log_change(conn, "camera", slot_id,
                            f'{{"occupied":{str(occupied).lower()}}}')
                 conn.commit()
@@ -1275,4 +1820,20 @@ if __name__ == "__main__":
     print(f"  EV Fee  : ₹{EV_SURCHARGE} surcharge on slots 9 & 10")
     print(f"  PDF     : {'✅ ReportLab ready' if REPORTLAB_OK else '❌ Install reportlab'}")
     print("=" * 64)
+
+    # Auto-start gate monitor in a background daemon thread
+    try:
+        import gate_monitor
+        gm_thread = threading.Thread(
+            target=gate_monitor.run_camera,
+            args=(gate_monitor.CAMERA_INDEX, "http://localhost:5000"),
+            kwargs={"preview": True},
+            daemon=True,
+            name="GateMonitor",
+        )
+        gm_thread.start()
+        print("  Gate    : ✅ gate_monitor started (camera 0)")
+    except Exception as _gm_err:
+        print(f"  Gate    : ⚠️  gate_monitor skipped — {_gm_err}")
+
     app.run(debug=True, use_reloader=False, host="0.0.0.0", port=5000)

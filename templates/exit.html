@@ -102,6 +102,7 @@
     </div>
 
     <button class="voice-btn" onclick="speakFee()">🔊 Hear Fee Summary</button>
+    <button class="voice-btn" onclick="voiceConfirmExit()">🎙️ Voice Confirm Exit</button>
     <button class="pay-btn" onclick="confirmExit()">
       ✅ Confirm & Debit ₹{{ billing.fee }}
     </button>
@@ -124,6 +125,7 @@
   const isEv   = {{ 'true' if billing.is_ev   else 'false' }};
   const isSurge = {{ 'true' if billing.is_surge else 'false' }};
   const duration = '{{ billing.duration_str }}';
+  let lastSessionReward = null;
 
   // ── Web Speech API ────────────────────────────────────────────────────────
   function speakFee() {
@@ -157,6 +159,7 @@
       });
       const d = await r.json();
       if (d.success) {
+        lastSessionReward = d.session?.green_credits || null;
         document.getElementById('pay-section').style.display = 'none';
         document.getElementById('success').style.display     = 'block';
 
@@ -176,8 +179,65 @@
           msg.rate = 0.92;
           window.speechSynthesis.speak(msg);
         }
+
+        setTimeout(askEcoSummaryByVoice, 1400);
       }
     } catch(e) { console.error(e); }
+  }
+
+  function voiceConfirmExit() {
+    const Rec = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!Rec) {
+      speakFee();
+      return;
+    }
+    if (window.speechSynthesis) {
+      const p = new SpeechSynthesisUtterance('Say confirm to process exit payment, or cancel to stop.');
+      p.rate = 0.95;
+      window.speechSynthesis.speak(p);
+    }
+    const rec = new Rec();
+    rec.lang = 'en-US';
+    rec.maxAlternatives = 1;
+    rec.interimResults = false;
+    rec.onresult = (evt) => {
+      const heard = (evt.results[0][0].transcript || '').toLowerCase();
+      if (/confirm|yes|pay|proceed/.test(heard)) {
+        confirmExit();
+      } else {
+        if (window.speechSynthesis) {
+          const m = new SpeechSynthesisUtterance('Payment cancelled. You can confirm anytime.');
+          m.rate = 0.95;
+          window.speechSynthesis.speak(m);
+        }
+      }
+    };
+    rec.start();
+  }
+
+  function askEcoSummaryByVoice() {
+    const Rec = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!Rec || !lastSessionReward) return;
+    if (window.speechSynthesis) {
+      const q = new SpeechSynthesisUtterance('Would you like to hear your Green Credits summary? Say yes or no.');
+      q.rate = 0.95;
+      window.speechSynthesis.speak(q);
+    }
+    const rec = new Rec();
+    rec.lang = 'en-US';
+    rec.maxAlternatives = 1;
+    rec.interimResults = false;
+    rec.onresult = (evt) => {
+      const heard = (evt.results[0][0].transcript || '').toLowerCase();
+      if (/yes|summary|green/.test(heard) && window.speechSynthesis) {
+        const pts = Number(lastSessionReward.points || 0);
+        const badges = (lastSessionReward.badges || []).join(', ') || 'No badge';
+        const msg = new SpeechSynthesisUtterance(`You earned ${pts} Green Credits. Badges unlocked: ${badges}.`);
+        msg.rate = 0.94;
+        window.speechSynthesis.speak(msg);
+      }
+    };
+    rec.start();
   }
 </script>
 </body>

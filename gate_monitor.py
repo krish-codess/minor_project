@@ -36,9 +36,11 @@ from datetime import datetime
 try:
     from pyzbar.pyzbar import decode as qr_decode
     PYZBAR_OK = True
-except ImportError:
+except Exception as e:
     PYZBAR_OK = False
-    print("⚠️  pyzbar not found. Run: pip install pyzbar --break-system-packages")
+    print("⚠️  pyzbar unavailable (missing zbar runtime or import error).")
+    print(f"    Details: {e}")
+    print("    Install zbar runtime or use --simulate mode.")
 
 try:
     import easyocr
@@ -53,6 +55,12 @@ try:
     FL_OK = True
 except Exception:
     FL_OK = False
+
+try:
+    import camera_buffer
+    CAM_BUF_OK = True
+except ImportError:
+    CAM_BUF_OK = False
 
 # ── Configuration ─────────────────────────────────────────────────────────────
 API_BASE        = "http://localhost:5000"
@@ -80,6 +88,7 @@ gps_listener   = None
 SRMIST_LAT = 12.82304
 SRMIST_LON = 80.04445
 GEOFENCE_RADIUS_M = 500.0
+qr_detector = cv2.QRCodeDetector()
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -172,6 +181,18 @@ def pick_slot(is_ev: bool, api_base: str) -> str:
         print(f"[pick_slot] Error: {e}")
 
     return None
+
+
+def extract_slot_from_qr(raw: str) -> str:
+    """Extract the slot id from a slot QR URL such as /scan/entry/3."""
+    raw = (raw or "").strip()
+    for marker in ("/scan/entry/", "/scan/exit/", "/scan/entry-confirm/"):
+        if marker in raw:
+            tail = raw.split(marker, 1)[1]
+            slot = tail.split("/", 1)[0].strip()
+            if slot.isdigit():
+                return slot
+    return ""
 
 
 def read_plate_from_frame(frame: np.ndarray) -> str:
@@ -297,6 +318,55 @@ def api_post(endpoint: str, payload: dict, api_base: str) -> dict:
         return {"success": False, "message": str(e)}
 
 
+def decode_qr_items(frame: np.ndarray):
+    """
+    Returns a list of decoded QR items in a unified format:
+      [{"raw": str, "points": np.ndarray|None}, ...]
+    Uses pyzbar when available, else falls back to OpenCV QR detector.
+    """
+    items = []
+
+    if PYZBAR_OK:
+        try:
+            decoded = qr_decode(frame)
+            for obj in decoded:
+                raw = obj.data.decode("utf-8", errors="ignore").strip()
+                pts = None
+                if getattr(obj, "polygon", None):
+                    poly = obj.polygon
+                    if len(poly) >= 4:
+                        pts = np.array([[p.x, p.y] for p in poly], dtype=np.int32)
+                items.append({"raw": raw, "points": pts})
+            return items
+        except Exception as e:
+            print(f"[QR] pyzbar decode error, falling back to OpenCV: {e}")
+
+    try:
+        ok, decoded_info, points, _ = qr_detector.detectAndDecodeMulti(frame)
+        if ok and decoded_info is not None:
+            for idx, raw in enumerate(decoded_info):
+                text = (raw or "").strip()
+                if not text:
+                    continue
+                pts = None
+                if points is not None and idx < len(points):
+                    pts = points[idx].astype(np.int32)
+                items.append({"raw": text, "points": pts})
+            return items
+
+        text, pts, _ = qr_detector.detectAndDecode(frame)
+        text = (text or "").strip()
+        if text:
+            items.append({
+                "raw": text,
+                "points": pts.astype(np.int32) if pts is not None else None,
+            })
+    except Exception as e:
+        print(f"[QR] OpenCV decode error: {e}")
+
+    return items
+
+
 # ══════════════════════════════════════════════════════════════════════════════
 # CORE: Process a detected QR scan
 # ══════════════════════════════════════════════════════════════════════════════
@@ -363,14 +433,34 @@ def process_scan(fasttag_id: str, frame: np.ndarray, api_base: str):
             speak("Security alert. Plate mismatch detected. Please wait for assistance.")
             return
 
-    # Auto-pick slot
-    slot_id = pick_slot(is_ev, api_base)
-    if not slot_id:
-        print(f"  ❌ No free slots available")
-        speak("Sorry, no parking slots are available at this time.")
-        return
+    # Prefer the slot encoded in the QR, then fall back to auto-pick.
+    preferred_slot = extract_slot_from_qr(fasttag_id)
+    slot_id = None
 
-    print(f"  🅿️  Auto-assigned: Slot P{slot_id}")
+    try:
+        slots_r = requests.get(f"{api_base}/api/slots", timeout=3).json()
+        if preferred_slot:
+            preferred = next((s for s in slots_r if str(s.get("id")) == preferred_slot), None)
+            if preferred and not preferred.get("is_occupied") and not preferred.get("occupied"):
+                slot_id = preferred_slot
+            elif preferred:
+                print(f"  ⚠️  Slot P{preferred_slot} is already occupied")
+                speak(f"Sorry. Slot P {preferred_slot} is currently occupied.")
+                return
+    except Exception:
+        pass
+
+    if not slot_id:
+        slot_id = pick_slot(is_ev, api_base)
+        if not slot_id:
+            print(f"  ❌ No free slots available")
+            speak("Sorry, no parking slots are available at this time.")
+            return
+
+    if preferred_slot:
+        print(f"  🅿️  Slot QR selected: P{slot_id}")
+    else:
+        print(f"  🅿️  Auto-assigned: Slot P{slot_id}")
 
     # POST entry
     result = api_post("/api/entry",
@@ -460,12 +550,11 @@ def handle_exit(fasttag_id: str, slot_id: str, api_base: str):
 # CAMERA LOOP
 # ══════════════════════════════════════════════════════════════════════════════
 
-def run_camera(camera_index: int, api_base: str):
+def run_camera(camera_index: int, api_base: str, preview: bool = True):
     """Main camera loop — reads frames, decodes QR, runs OCR periodically."""
 
     if not PYZBAR_OK:
-        print("❌ pyzbar required for QR scanning. Run: pip install pyzbar --break-system-packages")
-        return
+        print("⚠️  pyzbar unavailable. Using OpenCV QR fallback decoder.")
 
     print(f"\n🎥 Opening camera {camera_index}…")
     cap = cv2.VideoCapture(camera_index)
@@ -478,7 +567,10 @@ def run_camera(camera_index: int, api_base: str):
     threading.Thread(target=load_ocr, daemon=True).start()
 
     print("✅ Camera ready. Hold QR code in front of camera.")
-    print("   Press Q to quit.\n")
+    if preview:
+        print("   Press Q to quit.\n")
+    else:
+        print("   Preview disabled (headless mode). Press Ctrl-C to quit.\n")
 
     frame_count  = 0
     last_frame   = None
@@ -493,47 +585,58 @@ def run_camera(camera_index: int, api_base: str):
         last_frame   = frame.copy()
 
         # ── QR decode (every frame — fast) ───────────────────────────────────
-        if PYZBAR_OK:
-            decoded = qr_decode(frame)
-            for obj in decoded:
-                raw = obj.data.decode("utf-8", errors="ignore").strip()
+        decoded_items = decode_qr_items(frame)
+        for item in decoded_items:
+            raw = item["raw"]
 
-                # Extract FASTag ID from QR data
-                # QR contains URL like: http://host/scan/entry/3
-                # OR direct FASTag ID like: FT-AB12
-                fasttag_id = extract_fasttag(raw)
-                if fasttag_id:
-                    # Draw green box around QR
-                    pts = obj.polygon
-                    if len(pts) == 4:
-                        pts_np = np.array([[p.x, p.y] for p in pts], dtype=np.int32)
-                        cv2.polylines(frame, [pts_np], True, (0, 255, 0), 3)
-                    cv2.putText(frame, f"QR: {fasttag_id}", (20, 40),
-                                cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+            # Extract FASTag ID from QR data
+            # QR contains URL like: http://host/scan/entry/3
+            # OR direct FASTag ID like: FT-AB12
+            fasttag_id = extract_fasttag(raw)
+            if fasttag_id:
+                pts = item.get("points")
+                if pts is not None and len(pts) >= 4:
+                    cv2.polylines(frame, [pts], True, (0, 255, 0), 3)
+                cv2.putText(frame, f"QR: {fasttag_id}", (20, 40),
+                            cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
 
-                    # Process in background thread so camera keeps running
-                    threading.Thread(
-                        target=process_scan,
-                        args=(fasttag_id, last_frame.copy(), api_base),
-                        daemon=True
-                    ).start()
+                # Process in background thread so camera keeps running
+                threading.Thread(
+                    target=process_scan,
+                    args=(fasttag_id, last_frame.copy(), api_base),
+                    daemon=True
+                ).start()
 
-        # ── Overlay ───────────────────────────────────────────────────────────
+        # ── Overlay text on every frame ───────────────────────────────────────
         cv2.putText(frame, "RFID Gate Monitor v3.0", (10, frame.shape[0] - 40),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 212, 255), 2)
-        cv2.putText(frame, "Hold QR to camera | Press Q to quit",
-                    (10, frame.shape[0] - 15),
+        cv2.putText(frame, "Hold QR to camera", (10, frame.shape[0] - 15),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.5, (150, 150, 150), 1)
 
-        cv2.imshow("RFID Gate Monitor — SRM Parking", frame)
+        # ── Push annotated frame to shared buffer (for browser MJPEG stream) ─
+        if CAM_BUF_OK:
+            ok, jpeg = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 75])
+            if ok:
+                camera_buffer.set_frame(jpeg.tobytes())
 
-        if cv2.waitKey(1) & 0xFF == ord('q'):
-            break
+        if preview:
+            try:
+                cv2.imshow("RFID Gate Monitor — SRM Parking", frame)
+                if cv2.waitKey(1) & 0xFF == ord('q'):
+                    break
+            except cv2.error:
+                preview = False
+                print("⚠️  OpenCV preview unavailable in this environment.")
+                print("    Continuing camera scan in headless mode.")
 
         time.sleep(SCAN_INTERVAL)
 
     cap.release()
-    cv2.destroyAllWindows()
+    if preview:
+        try:
+            cv2.destroyAllWindows()
+        except cv2.error:
+            pass
     print("\n🛑 Gate monitor stopped.")
 
 
@@ -646,6 +749,8 @@ if __name__ == "__main__":
                         help="Flask API base URL")
     parser.add_argument("--simulate", action="store_true",
                         help="Run in simulation mode (no camera needed)")
+    parser.add_argument("--no-preview", action="store_true",
+                        help="Disable OpenCV preview window (for headless OpenCV builds)")
     args = parser.parse_args()
 
     print("="*55)
@@ -664,4 +769,4 @@ if __name__ == "__main__":
     if args.simulate:
         run_simulation(args.api)
     else:
-        run_camera(args.camera, args.api)
+        run_camera(args.camera, args.api, preview=not args.no_preview)
